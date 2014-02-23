@@ -42,12 +42,17 @@ static inline row_t reverse_row(row_t row) {
 /* The tile deck */
 typedef uint32_t deck_t;
 
-#define DECK_SUB_1(deck) ((deck)--)
-#define DECK_SUB_2(deck) ((deck)-=(1<<8))
-#define DECK_SUB_3(deck) ((deck)-=(1<<16))
+#define DECK_SUB_1(deck) ((deck)-1)
+#define DECK_SUB_2(deck) ((deck)-(1<<8))
+#define DECK_SUB_3(deck) ((deck)-(1<<16))
 
 #define DECK_1(deck) ((deck) & 0xff)
 #define DECK_2(deck) (((deck) >> 8) & 0xff)
 #define DECK_3(deck) (((deck) >> 16) & 0xff)
 #define INITIAL_DECK (0x00040404UL) // four of each item
 
+/* Extra deck bits for expectimax */
+#define DECK_WITH_MAXVAL(deck,mv) (((deck) & 0xffffff) | (mv << 24))
+#define DECK_MAXVAL(deck) (((deck) >> 24) & 0xff)
+
+#define HIGH_CARD_FREQ 24

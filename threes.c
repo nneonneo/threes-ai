@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -63,58 +64,94 @@ static void init_move_tables(void) {
     }
 }
 
+#define DO_LINE(tbl,i,lookup,xor) do { \
+        tmp = tbl[lookup]; \
+        if(tmp) { \
+            ch += 256 + (1 << i); \
+            ret ^= xor; \
+        } \
+    } while(0)
+
+#define DO_ROW(tbl,i) DO_LINE(tbl,i, (board >> (16*i)) & ROW_MASK,          tmp << (16*i))
+#define DO_COL(tbl,i) DO_LINE(tbl,i, pack_col((board >> (4*i)) & COL_MASK), tmp << (4*i))
+
+static inline board_t execute_move_0(board_t board, int *changed) {
+    int ch = 0;
+    board_t tmp;
+    board_t ret = board;
+
+    DO_COL(col_up_table, 0);
+    DO_COL(col_up_table, 1);
+    DO_COL(col_up_table, 2);
+    DO_COL(col_up_table, 3);
+
+    *changed = ch;
+    return ret;
+}
+
+static inline board_t execute_move_1(board_t board, int *changed) {
+    int ch = 0;
+    board_t tmp;
+    board_t ret = board;
+
+    DO_COL(col_down_table, 0);
+    DO_COL(col_down_table, 1);
+    DO_COL(col_down_table, 2);
+    DO_COL(col_down_table, 3);
+
+    *changed = ch;
+    return ret;
+}
+
+static inline board_t execute_move_2(board_t board, int *changed) {
+    int ch = 0;
+    board_t tmp;
+    board_t ret = board;
+
+    DO_ROW(row_left_table, 0);
+    DO_ROW(row_left_table, 1);
+    DO_ROW(row_left_table, 2);
+    DO_ROW(row_left_table, 3);
+
+    *changed = ch;
+    return ret;
+}
+
+static inline board_t execute_move_3(board_t board, int *changed) {
+    int ch = 0;
+    board_t tmp;
+    board_t ret = board;
+
+    DO_ROW(row_right_table, 0);
+    DO_ROW(row_right_table, 1);
+    DO_ROW(row_right_table, 2);
+    DO_ROW(row_right_table, 3);
+
+    *changed = ch;
+    return ret;
+}
+#undef DO_ROW
+#undef DO_COL
+#undef DO_LINE
+
 /* Execute a move. Store status about the move's effects in `changed'.
  * 
  * The format of `changed' is (num_changed << 8) | changed_bits
  * where the ith bit of changed_bits is set iff row/col i moved.
  */
 static inline board_t execute_move(int move, board_t board, int *changed) {
-    board_t tmp;
-    board_t ret = board;
-
-    *changed = 0;
-
-#define DO_ROW(tbl,i) do { tmp = tbl[(board >> (16*i)) & ROW_MASK]; \
-    if(tmp) { *changed |= 1 << i; *changed += 256; } \
-    ret ^= (tmp << (16*i)); } while(0)
-
-#define DO_COL(tbl,i) do { tmp = tbl[pack_col((board >> (4*i)) & COL_MASK)]; \
-    if(tmp) { *changed |= 1 << i; *changed += 256; } \
-    ret ^= (tmp << (4*i)); } while(0)
-
     switch(move) {
     case 0: // up
-        DO_COL(col_up_table, 0);
-        DO_COL(col_up_table, 1);
-        DO_COL(col_up_table, 2);
-        DO_COL(col_up_table, 3);
-        break;
+        return execute_move_0(board, changed);
     case 1: // down
-        DO_COL(col_down_table, 0);
-        DO_COL(col_down_table, 1);
-        DO_COL(col_down_table, 2);
-        DO_COL(col_down_table, 3);
-        break;
+        return execute_move_1(board, changed);
     case 2: // left
-        DO_ROW(row_left_table, 0);
-        DO_ROW(row_left_table, 1);
-        DO_ROW(row_left_table, 2);
-        DO_ROW(row_left_table, 3);
-        break;
+        return execute_move_2(board, changed);
     case 3: // right
-        DO_ROW(row_right_table, 0);
-        DO_ROW(row_right_table, 1);
-        DO_ROW(row_right_table, 2);
-        DO_ROW(row_right_table, 3);
-        break;
+        return execute_move_3(board, changed);
     default:
         return ~0ULL;
     }
-
-#undef DO_ROW
-#undef DO_COL
-
-    return ret;
 }
 
 static inline int get_max_rank(board_t board) {
@@ -144,6 +181,245 @@ static inline board_t insert_tile(int move, board_t board, int pos, int tile) {
 }
 
 
+/* Optimizing the game */
+// cprob: cumulative probability
+/* don't recurse into a node with a cprob less than this threshold */
+#define CPROB_THRESH (3e-4)
+static float row_heur_score_table[65536];
+static float row_score_table[65536];
+
+// score a single board heuristically
+static float score_heur_board(board_t board);
+// score a single board actually
+static float score_board(board_t board);
+// score over all possible moves
+static float score_move_node(board_t board, deck_t deck, float cprob);
+// score over all possible tile choices
+static float score_tilechoose_node(board_t board, deck_t deck, float cprob, int move, int changed);
+// score over all possible tile placements
+static float score_tileinsert_node(board_t board, deck_t deck, float cprob, int move, int changed, int tile);
+
+static void init_score_tables(void) {
+    unsigned row;
+
+    memset(row_heur_score_table, 0, sizeof(row_heur_score_table));
+    memset(row_score_table, 0, sizeof(row_score_table));
+
+    for(row = 0; row < 65536; row++) {
+        int i;
+        float heur_score = 0;
+        float score = 0;
+
+        for(i=0; i<4; i++) {
+            int rank = (row >> (4*i)) & 0xf;
+
+            if(rank == 0) {
+                heur_score += 30;
+            } else if(rank >= 3) {
+                heur_score += rank*rank;
+                score += powf(3, rank-2);
+            }
+        }
+        row_score_table[row] = score;
+        row_heur_score_table[row] = heur_score;
+    }
+}
+
+#define SCORE_BOARD(board,tbl) ((tbl)[(board) & ROW_MASK] + \
+    (tbl)[((board) >> 16) & ROW_MASK] + \
+    (tbl)[((board) >> 32) & ROW_MASK] + \
+    (tbl)[((board) >> 48) & ROW_MASK])
+
+static float score_heur_board(board_t board) {
+    return SCORE_BOARD(board, row_heur_score_table);
+}
+
+static float score_board(board_t board) {
+    return SCORE_BOARD(board, row_score_table);
+}
+    
+static float score_tileinsert_node(board_t board, deck_t deck, float cprob, int move, int changed, int tile) {
+    float res = 0;
+    int div = changed >> 8;
+    int pos;
+    cprob /= div;
+    for(pos=0; pos<4; pos++) {
+        if(changed & (1<<pos))
+            res += score_move_node(insert_tile(move, board, pos, tile), deck, cprob);
+    }
+
+    return res / div;
+}
+
+static float score_tilechoose_node(board_t board, deck_t deck, float cprob, int move, int changed) {
+    float res = 0;
+    int mv = DECK_MAXVAL(deck);
+
+    if(!(deck & 0x00ffffff))
+        deck = DECK_WITH_MAXVAL(INITIAL_DECK, mv);
+
+    int a = DECK_1(deck);
+    int b = DECK_2(deck);
+    int c = DECK_3(deck);
+    float div = a+b+c;
+    float hres = 0;
+
+    if(mv >= 7) {
+        /* High tile */
+        int choices = mv - 6;
+        int i;
+
+        for(i=0; i<choices; i++) {
+            hres += score_tileinsert_node(board, deck, cprob / choices / HIGH_CARD_FREQ, move, changed, i+4);
+        }
+        hres /= choices;
+        hres /= HIGH_CARD_FREQ;
+
+        div *= ((float)HIGH_CARD_FREQ)/(HIGH_CARD_FREQ - 1);
+    }
+
+    if(a)
+        res += score_tileinsert_node(board, DECK_SUB_1(deck), cprob / div * a, move, changed, 1) * a;
+    if(b)
+        res += score_tileinsert_node(board, DECK_SUB_2(deck), cprob / div * b, move, changed, 2) * b;
+    if(c)
+        res += score_tileinsert_node(board, DECK_SUB_3(deck), cprob / div * c, move, changed, 3) * c;
+
+    res /= div;
+    res += hres;
+
+    return res;
+}
+
+static float score_move_node(board_t board, deck_t deck, float cprob) {
+    if(cprob < CPROB_THRESH) {
+        return score_heur_board(board);
+    }
+
+    int move;
+    float best = 0;
+
+    for(move=0; move<4; move++) {
+        int changed;
+        board_t newboard = execute_move(move, board, &changed);
+        if(!changed)
+            continue;
+
+        float res = score_tilechoose_node(newboard, deck, cprob, move, changed);
+        if(res > best)
+            best = res;
+    }
+
+    return best;
+}
+
+typedef int (*get_move_func_t)(board_t, deck_t, int);
+
+/* Find the best move for a given board, deck and upcoming tile.
+ * 
+ * Note: the deck must represent the deck BEFORE the given tile was drawn.
+ * This enables correct behaviour for 3+ tiles. */
+int find_best_move(board_t board, deck_t deck, int tile) {
+    int move;
+    int maxrank = get_max_rank(board);
+    float best = 0;
+    int bestmove = -1;
+
+    deck = DECK_WITH_MAXVAL(deck, maxrank);
+
+    printf("%s\n", BOARDSTR(board, '\n'));
+    printf("Next tile: %d\n", tile);
+
+    for(move=0; move<4; move++) {
+        float res = 0;
+        int changed;
+        board_t newboard = execute_move(move, board, &changed);
+
+        if(!changed)
+            continue;
+
+        if(tile == 1)
+            res = score_tileinsert_node(newboard, DECK_SUB_1(deck), 1.0, move, changed, 1);
+        else if(tile == 2)
+            res = score_tileinsert_node(newboard, DECK_SUB_2(deck), 1.0, move, changed, 2);
+        else {
+            if(DECK_3(deck))
+                res = score_tileinsert_node(newboard, DECK_SUB_3(deck), 1.0, move, changed, 3);
+            if(maxrank >= 7) {
+                int a = DECK_1(deck);
+                int b = DECK_2(deck);
+                int c = DECK_3(deck);
+                float denom = a + b + HIGH_CARD_FREQ * c;
+                float highprob = (a+b+c) / denom;
+
+                float hres = 0;
+                int choices = maxrank - 6;
+                int card;
+
+                for(card=0; card<choices; card++) {
+                    hres += score_tileinsert_node(newboard, deck, highprob / choices, move, changed, card+4);
+                }
+                hres /= choices;
+
+                res = highprob * hres + (1-highprob) * res;
+            }
+        }
+
+        printf("Move %d: result %f\n", move, res);
+
+        if(res > best) {
+            best = res;
+            bestmove = move;
+        }
+    }
+
+    return bestmove;
+}
+
+int ask_for_move(board_t board, deck_t deck, int tile) {
+    int move;
+    char validstr[5];
+    char *validpos = validstr;
+
+    (void)deck;
+
+    printf("%s\n", BOARDSTR(board, '\n'));
+
+    for(move=0; move<4; move++) {
+        int changed;
+        execute_move(move, board, &changed);
+        if(!changed)
+            continue;
+        *validpos++ = "UDLR"[move];
+    }
+    *validpos = 0;
+    if(validpos == validstr)
+        return -1;
+
+    if(tile >= 3) {
+        printf("Next tile: 3+\n");
+    } else {
+        printf("Next tile: %d\n", tile);
+    }
+
+    while(1) {
+        char movestr[64];
+        const char *allmoves = "UDLR";
+
+        printf("Move [%s]? ", validstr);
+
+        if(!fgets(movestr, sizeof(movestr)-1, stdin))
+            return -1;
+
+        if(!strchr(validstr, toupper(movestr[0]))) {
+            printf("Invalid move.\n");
+            continue;
+        }
+
+        return strchr(allmoves, toupper(movestr[0])) - allmoves;
+    }
+}
+
 /* Playing the game */
 static int draw_deck(deck_t *deck) {
     int a = DECK_1(*deck);
@@ -152,13 +428,13 @@ static int draw_deck(deck_t *deck) {
     int r = UNIF_RANDOM(a+b+c);
 
     if(r < a) {
-        DECK_SUB_1(*deck);
+        *deck = DECK_SUB_1(*deck);
         return 1;
     } else if(r-a < b) {
-        DECK_SUB_2(*deck);
+        *deck = DECK_SUB_2(*deck);
         return 2;
     } else {
-        DECK_SUB_3(*deck);
+        *deck = DECK_SUB_3(*deck);
         return 3;
     }
 }
@@ -183,64 +459,30 @@ static board_t initial_board(deck_t *deck) {
     return board;
 }
 
-static void play_game_interactive(void) {
+static void play_game(get_move_func_t get_move) {
     deck_t deck = INITIAL_DECK;
     board_t board = initial_board(&deck);
-    int tile;
 
     while(1) {
+        deck_t olddeck = deck;
         int i;
+        int move;
+        int tile;
         int changed;
         int maxrank = get_max_rank(board);
-        char validstr[5];
-        char *validpos = validstr;
-        int move;
 
-        printf("%s\n", BOARDSTR(board, '\n'));
+        if(!deck)
+            olddeck = deck = INITIAL_DECK;
 
-        for(i=0; i<4; i++) {
-            execute_move(i, board, &changed);
-            if(!changed)
-                continue;
-            *validpos++ = "UDLR"[i];
-        }
-        *validpos = 0;
-        if(validpos == validstr) {
-            /* Game over: no valid moves left */
-            break;
-        }       
-
-        if(maxrank >= 7 && UNIF_RANDOM(24) == 0) {
+        if(maxrank >= 7 && UNIF_RANDOM(HIGH_CARD_FREQ) == 0) {
             tile = UNIF_RANDOM(maxrank-6) + 4;
         } else {
-            if(!deck)
-                deck = INITIAL_DECK;
             tile = draw_deck(&deck);
         }
 
-        if(tile >= 3) {
-            printf("Next tile: 3+\n");
-        } else {
-            printf("Next tile: %d\n", tile);
-        }
-
-        while(1) {
-            char movestr[64];
-            const char *allmoves = "UDLR";
-
-            printf("Move [%s]? ", validstr);
-
-            if(!fgets(movestr, sizeof(movestr)-1, stdin))
-                return;
-
-            if(!strchr(validstr, toupper(movestr[0]))) {
-                printf("Invalid move.\n");
-                continue;
-            }
-
-            move = strchr(allmoves, toupper(movestr[0])) - allmoves;
+        move = get_move(board, olddeck, tile);
+        if(move < 0)
             break;
-        }
 
         board = execute_move(move, board, &changed);
         int count = changed >> 8;
@@ -256,12 +498,16 @@ static void play_game_interactive(void) {
         board = insert_tile(move, board, i, tile);
     }
 
-    printf("Game over.\n");
+    printf("\nGame over. Your score is %.0f.\n", score_board(board));
 }
 
 int main(int argc, char **argv) {
-    init_move_tables();
+    (void)argc;
+    (void)argv;
 
-    play_game_interactive();
+    init_move_tables();
+    init_score_tables();
+
+    play_game(find_best_move);
     return 0;
 }
