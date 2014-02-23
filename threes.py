@@ -38,11 +38,11 @@ def get_lines(m, dir):
     elif dir == 3: # right
         return [m[i,::-1] for i in xrange(4)]
 
-TILESEQ = [3,2,3,1,1,1,3,1,2,2,1,2,1,3,1,2,3,3,2,1,2,3,1,1,2,2,3,1,1,2,3,2,3,3,3,2,1,2,3,2,1,1,3,2,2,3,2,1,3,1,1,3,2,2,2,2,1,1,1,3,1,3,3,3,1,1,1,1,2,1,3,3,2,1,1,3,3,3,1,3,2,2,1,2,2,1,2,2,1,3,2,3,3,1,1,1,2,3,2,3,2,1,1,2,2,2,2,1,2,3,2,1,3,1,1,2,3,3,2,2,1,2,3,1,2,2,2,1,1,2,2,2,2,3,1,2,2,3,2,3,2,2,2]
-START = np.asarray([[0,  0,  0,  3],
-[3,  2,  2,  1],
-[3,  0,  0,  1],
-[2,  0,  3,  0]])
+def make_deck():
+    import random
+    deck = [1]*4 + [2]*4 + [3]*4
+    random.shuffle(deck)
+    return deck
 
 def play_game():
     ''' Non-interactive play_game function. Yields (board, next_tile, valid_moves) tuples.
@@ -50,9 +50,13 @@ def play_game():
     Raises StopIteration when the game is over.'''
 
     import random
-    # TODO: Not sure how initial board is generated.
-    #m = np.array([random.choice([0,0,1,2,3]) for _ in xrange(16)]).reshape(4,4)
-    m = START.copy()
+
+    deck = make_deck()
+    pos = random.sample(xrange(16), 9)
+    m = np.zeros((16,), dtype=int)
+    m[pos] = deck[:len(pos)]
+    deck = deck[len(pos):]
+    m = m.reshape((4,4))
 
     moveno = 0
     while True:
@@ -60,10 +64,14 @@ def play_game():
         foldset = [[find_fold(l) for l in lineset[i]] for i in xrange(4)]
         valid = [i for i in xrange(4) if any(f >= 0 for f in foldset[i])]
 
-        # TODO: figure out if the tiles are chosen with equal probability
-        # TODO: figure out how the game picks tiles of value > 3
-        #tile = random.choice([1,2,3])
-        tile = TILESEQ[moveno % len(TILESEQ)]
+        # TODO: check that this probability is correct
+        maxval = m.max()
+        if maxval >= 7 and random.random() < 1/24.:
+            tile = random.choice(xrange(4, maxval-2))
+        else:
+            if not deck:
+                deck = make_deck()
+            tile = deck.pop()
 
         move = yield m, tile, valid
         moveno += 1
@@ -93,8 +101,11 @@ def play_game_interactive():
             print "Game over."
             print "Your score is", to_score(m).sum()
             break
-            
-        print 'next tile:', {1: '1', 2: '2', 3: '3+'}[tile]
+
+        if tile >= 3:
+            print 'next tile: 3+'
+        else:
+            print 'next tile:', tile
 
         movelist = ''.join('UDLR'[i] for i in valid)
         while True:
