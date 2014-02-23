@@ -1,11 +1,11 @@
 CFLAGS += -O3 -Wall -Werror -Wextra
 
-all: threes
+all: bin/threes
 
 bin:
-	mkdir bin
+	mkdir bin 2>/dev/null || true
 
-threes: bin/threes.o
+bin/threes: bin/threes.o
 	$(LINK.o) $^ $(LOADLIBES) $(LDLIBS) -o $@
 
 bin/%.o : %.c | bin
