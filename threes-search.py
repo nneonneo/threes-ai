@@ -83,7 +83,7 @@ def play_with_search():
             break
 
         print 'next tile:', {1: '1', 2: '2', 3: '3+'}[tile]
-        move, score = max_move(m, tile, 4)
+        move, score = max_move(m, tile, 3)
         print 'executing move:', move, 'score:', score
 
 if __name__ == '__main__':

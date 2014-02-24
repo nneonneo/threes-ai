@@ -58,7 +58,6 @@ def play_game():
     deck = deck[len(pos):]
     m = m.reshape((4,4))
 
-    moveno = 0
     while True:
         lineset = [get_lines(m, i) for i in xrange(4)]
         foldset = [[find_fold(l) for l in lineset[i]] for i in xrange(4)]

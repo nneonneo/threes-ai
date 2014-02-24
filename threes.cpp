@@ -189,7 +189,7 @@ static inline board_t insert_tile(int move, board_t board, int pos, int tile) {
 /* Optimizing the game */
 // cprob: cumulative probability
 /* don't recurse into a node with a cprob less than this threshold */
-#define CPROB_THRESH (5e-3f)
+#define CPROB_THRESH (2e-3f)
 static float row_heur_score_table[65536];
 static float row_score_table[65536];
 static std::map<board_t, float> trans_table;
@@ -220,7 +220,7 @@ void init_score_tables(void) {
             int rank = (row >> (4*i)) & 0xf;
 
             if(rank == 0) {
-                heur_score += 128;
+                heur_score += 12800;
             } else if(rank >= 3) {
                 heur_score += powf(3, rank-2);
                 score += powf(3, rank-2);
