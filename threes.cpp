@@ -4,8 +4,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <map>
 
 #include "threes.h"
+
+static int moves_evaled = 0;
 
 /* We can perform state lookups one row at a time by using arrays with 65536 entries. */
 
@@ -64,11 +68,11 @@ static void init_move_tables(void) {
     }
 }
 
-#define DO_LINE(tbl,i,lookup,xor) do { \
+#define DO_LINE(tbl,i,lookup,xv) do { \
         tmp = tbl[lookup]; \
         if(tmp) { \
             ch += 256 + (1 << i); \
-            ret ^= xor; \
+            ret ^= xv; \
         } \
     } while(0)
 
@@ -140,6 +144,7 @@ static inline board_t execute_move_3(board_t board, int *changed) {
  * where the ith bit of changed_bits is set iff row/col i moved.
  */
 static inline board_t execute_move(int move, board_t board, int *changed) {
+    moves_evaled++;
     switch(move) {
     case 0: // up
         return execute_move_0(board, changed);
@@ -168,13 +173,13 @@ static inline int get_max_rank(board_t board) {
 static inline board_t insert_tile(int move, board_t board, int pos, int tile) {
     switch(move) {
     case 0: // up
-        return board | ((board_t)tile) << (pos*4 + 48);
+        return board | (((board_t)tile) << (pos*4 + 48));
     case 1: // down
-        return board | ((board_t)tile) << pos*4;
+        return board | (((board_t)tile) << pos*4);
     case 2: // left
-        return board | ((board_t)tile) << (12 + pos*16);
+        return board | (((board_t)tile) << (12 + pos*16));
     case 3: // right
-        return board | ((board_t)tile) << (pos*16);
+        return board | (((board_t)tile) << (pos*16));
     default:
         return ~0ULL;
     }
@@ -184,9 +189,10 @@ static inline board_t insert_tile(int move, board_t board, int pos, int tile) {
 /* Optimizing the game */
 // cprob: cumulative probability
 /* don't recurse into a node with a cprob less than this threshold */
-#define CPROB_THRESH (3e-4)
+#define CPROB_THRESH (5e-3f)
 static float row_heur_score_table[65536];
 static float row_score_table[65536];
+static std::map<board_t, float> trans_table;
 
 // score a single board heuristically
 static float score_heur_board(board_t board);
@@ -214,9 +220,9 @@ static void init_score_tables(void) {
             int rank = (row >> (4*i)) & 0xf;
 
             if(rank == 0) {
-                heur_score += 30;
+                heur_score += 128;
             } else if(rank >= 3) {
-                heur_score += rank*rank;
+                heur_score += powf(3, rank-2);
                 score += powf(3, rank-2);
             }
         }
@@ -240,15 +246,15 @@ static float score_board(board_t board) {
     
 static float score_tileinsert_node(board_t board, deck_t deck, float cprob, int move, int changed, int tile) {
     float res = 0;
-    int div = changed >> 8;
+    float factor = 1.0f / (changed >> 8);
     int pos;
-    cprob /= div;
+    cprob *= factor;
     for(pos=0; pos<4; pos++) {
         if(changed & (1<<pos))
             res += score_move_node(insert_tile(move, board, pos, tile), deck, cprob);
     }
 
-    return res / div;
+    return res * factor;
 }
 
 static float score_tilechoose_node(board_t board, deck_t deck, float cprob, int move, int changed) {
@@ -272,8 +278,7 @@ static float score_tilechoose_node(board_t board, deck_t deck, float cprob, int 
         for(i=0; i<choices; i++) {
             hres += score_tileinsert_node(board, deck, cprob / choices / HIGH_CARD_FREQ, move, changed, i+4);
         }
-        hres /= choices;
-        hres /= HIGH_CARD_FREQ;
+        hres /= (choices * HIGH_CARD_FREQ);
 
         div *= ((float)HIGH_CARD_FREQ)/(HIGH_CARD_FREQ - 1);
     }
@@ -291,14 +296,29 @@ static float score_tilechoose_node(board_t board, deck_t deck, float cprob, int 
     return res;
 }
 
+static int maxdepth = 0;
+static int curdepth = 0;
+static int cachehits = 0;
+
 static float score_move_node(board_t board, deck_t deck, float cprob) {
-    if(cprob < CPROB_THRESH) {
+    if(cprob < CPROB_THRESH / (DECK_MAXVAL(deck)-2)) {
+        if(curdepth > maxdepth)
+            maxdepth = curdepth;
         return score_heur_board(board);
+    }
+
+    if(curdepth < 4) {
+        const auto &i = trans_table.find(board);
+        if(i != trans_table.end()) {
+            cachehits++;
+            return i->second;
+        }
     }
 
     int move;
     float best = 0;
 
+    curdepth++;
     for(move=0; move<4; move++) {
         int changed;
         board_t newboard = execute_move(move, board, &changed);
@@ -308,6 +328,11 @@ static float score_move_node(board_t board, deck_t deck, float cprob) {
         float res = score_tilechoose_node(newboard, deck, cprob, move, changed);
         if(res > best)
             best = res;
+    }
+    curdepth--;
+
+    if(curdepth < 4) {
+        trans_table[board] = best;
     }
 
     return best;
@@ -328,44 +353,50 @@ int find_best_move(board_t board, deck_t deck, int tile) {
     deck = DECK_WITH_MAXVAL(deck, maxrank);
 
     printf("%s\n", BOARDSTR(board, '\n'));
-    printf("Next tile: %d\n", tile);
+    printf("Current scores: heur %.0f, actual %.0f\n", score_heur_board(board), score_board(board));
+    printf("Next tile: %d (deck=%08x)\n", tile, deck);
 
     for(move=0; move<4; move++) {
         float res = 0;
         int changed;
         board_t newboard = execute_move(move, board, &changed);
+        clock_t start = clock();
+
+        moves_evaled = 0;
+        maxdepth = 0;
+        cachehits = 0;
+        trans_table.clear();
 
         if(!changed)
             continue;
 
         if(tile == 1)
-            res = score_tileinsert_node(newboard, DECK_SUB_1(deck), 1.0, move, changed, 1);
+            res = score_tileinsert_node(newboard, DECK_SUB_1(deck), 1.0f, move, changed, 1);
         else if(tile == 2)
-            res = score_tileinsert_node(newboard, DECK_SUB_2(deck), 1.0, move, changed, 2);
+            res = score_tileinsert_node(newboard, DECK_SUB_2(deck), 1.0f, move, changed, 2);
         else {
             if(DECK_3(deck))
-                res = score_tileinsert_node(newboard, DECK_SUB_3(deck), 1.0, move, changed, 3);
+                res = score_tileinsert_node(newboard, DECK_SUB_3(deck), 1.0f, move, changed, 3);
             if(maxrank >= 7) {
                 int a = DECK_1(deck);
                 int b = DECK_2(deck);
                 int c = DECK_3(deck);
-                float denom = a + b + HIGH_CARD_FREQ * c;
-                float highprob = (a+b+c) / denom;
+                int choices = maxrank - 6;
+                float highprob = ((float)(a+b+c)) / ((a + b + HIGH_CARD_FREQ * c) * choices);
 
                 float hres = 0;
-                int choices = maxrank - 6;
                 int card;
 
                 for(card=0; card<choices; card++) {
-                    hres += score_tileinsert_node(newboard, deck, highprob / choices, move, changed, card+4);
+                    hres += score_tileinsert_node(newboard, deck, highprob, move, changed, card+4);
                 }
-                hres /= choices;
 
                 res = highprob * hres + (1-highprob) * res;
             }
         }
 
-        printf("Move %d: result %f\n", move, res);
+        printf("Move %d: result %f, evaled %d moves (%d cached) in %.2f seconds (maxdepth=%d)\n", move, res,
+            moves_evaled, cachehits, ((float)(clock() - start)) / CLOCKS_PER_SEC, maxdepth);
 
         if(res > best) {
             best = res;
@@ -462,6 +493,7 @@ static board_t initial_board(deck_t *deck) {
 static void play_game(get_move_func_t get_move) {
     deck_t deck = INITIAL_DECK;
     board_t board = initial_board(&deck);
+    int moveno = 0;
 
     while(1) {
         deck_t olddeck = deck;
@@ -479,6 +511,8 @@ static void play_game(get_move_func_t get_move) {
         } else {
             tile = draw_deck(&deck);
         }
+
+        printf("\nMove #%d\n", ++moveno);
 
         move = get_move(board, olddeck, tile);
         if(move < 0)
