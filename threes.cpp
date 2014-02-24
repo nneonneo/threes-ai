@@ -22,7 +22,7 @@ static board_t row_right_table[65536];
 static board_t col_up_table[65536];
 static board_t col_down_table[65536];
 
-static void init_move_tables(void) {
+void init_move_tables(void) {
     unsigned row;
 
     memset(row_left_table, 0, sizeof(row_left_table));
@@ -31,7 +31,7 @@ static void init_move_tables(void) {
     memset(col_down_table, 0, sizeof(col_down_table));
 
     for(row = 0; row < 65536; row++) {
-        unsigned char line[4] = {row & 0xf, (row >> 4) & 0xf, (row >> 8) & 0xf, (row >> 12) & 0xf};
+        unsigned int line[4] = {row & 0xf, (row >> 4) & 0xf, (row >> 8) & 0xf, (row >> 12) & 0xf};
         row_t result;
         int i, j;
 
@@ -205,7 +205,7 @@ static float score_tilechoose_node(board_t board, deck_t deck, float cprob, int 
 // score over all possible tile placements
 static float score_tileinsert_node(board_t board, deck_t deck, float cprob, int move, int changed, int tile);
 
-static void init_score_tables(void) {
+void init_score_tables(void) {
     unsigned row;
 
     memset(row_heur_score_table, 0, sizeof(row_heur_score_table));
@@ -337,8 +337,6 @@ static float score_move_node(board_t board, deck_t deck, float cprob) {
 
     return best;
 }
-
-typedef int (*get_move_func_t)(board_t, deck_t, int);
 
 /* Find the best move for a given board, deck and upcoming tile.
  * 
@@ -490,7 +488,7 @@ static board_t initial_board(deck_t *deck) {
     return board;
 }
 
-static void play_game(get_move_func_t get_move) {
+void play_game(get_move_func_t get_move) {
     deck_t deck = INITIAL_DECK;
     board_t board = initial_board(&deck);
     int moveno = 0;
