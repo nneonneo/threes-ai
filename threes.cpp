@@ -187,9 +187,6 @@ static inline board_t insert_tile(int move, board_t board, int pos, int tile) {
 
 
 /* Optimizing the game */
-// cprob: cumulative probability
-/* don't recurse into a node with a cprob less than this threshold */
-#define CPROB_THRESH (2e-3f)
 static float row_heur_score_table[65536];
 static float row_score_table[65536];
 static std::map<board_t, float> trans_table;
@@ -296,18 +293,24 @@ static float score_tilechoose_node(board_t board, deck_t deck, float cprob, int 
     return res;
 }
 
+/* Statistics and controls */
+// cprob: cumulative probability
+/* don't recurse into a node with a cprob less than this threshold */
+#define CPROB_THRESH_BASE (2e-3f)
+#define CACHE_DEPTH_LIMIT 5
+static float cprob_thresh = 0;
 static int maxdepth = 0;
 static int curdepth = 0;
 static int cachehits = 0;
 
 static float score_move_node(board_t board, deck_t deck, float cprob) {
-    if(cprob < CPROB_THRESH / (DECK_MAXVAL(deck)-2)) {
+    if(cprob < cprob_thresh) {
         if(curdepth > maxdepth)
             maxdepth = curdepth;
         return score_heur_board(board);
     }
 
-    if(curdepth < 4) {
+    if(curdepth < CACHE_DEPTH_LIMIT) {
         const auto &i = trans_table.find(board);
         if(i != trans_table.end()) {
             cachehits++;
@@ -331,7 +334,7 @@ static float score_move_node(board_t board, deck_t deck, float cprob) {
     }
     curdepth--;
 
-    if(curdepth < 4) {
+    if(curdepth < CACHE_DEPTH_LIMIT) {
         trans_table[board] = best;
     }
 
@@ -363,6 +366,7 @@ int find_best_move(board_t board, deck_t deck, int tile) {
         moves_evaled = 0;
         maxdepth = 0;
         cachehits = 0;
+        cprob_thresh = CPROB_THRESH_BASE / (maxrank - 2);
         trans_table.clear();
 
         if(!changed)
@@ -387,8 +391,8 @@ int find_best_move(board_t board, deck_t deck, int tile) {
             res *= highprob;
         }
 
-        printf("Move %d: result %f, evaled %d moves (%d cached) in %.2f seconds (maxdepth=%d)\n", move, res,
-            moves_evaled, cachehits, ((float)(clock() - start)) / CLOCKS_PER_SEC, maxdepth);
+        printf("Move %d: result %f: eval'd %d moves (%d cache hits, %zd cache size) in %.2f seconds (maxdepth=%d)\n", move, res,
+            moves_evaled, cachehits, trans_table.size(), ((float)(clock() - start)) / CLOCKS_PER_SEC, maxdepth);
 
         if(res > best) {
             best = res;
