@@ -61,14 +61,15 @@ def classify(imc):
     return exemplars[key]
 
 def find_next_tile(im):
-    px = im.getpixel((320, 150))
+    px = im.getpixel((320, 146))
     ret = {
         (102, 204, 255): 1,
         (255, 102, 128): 2,
-        (254, 255, 255): 3}.get(px, 0)
-#    if ret == 0:
-#        print "Warning: unknown next tile!"
-#        im.show()
+        (254, 255, 255): 3,
+        (0, 0, 0): 4}.get(px, 0)
+    if ret == 0:
+        print "Warning: unknown next tile (px=%s)!" % (px,)
+        im.show()
     return ret
 
 def ocr(fn):

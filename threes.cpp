@@ -372,25 +372,19 @@ int find_best_move(board_t board, deck_t deck, int tile) {
             res = score_tileinsert_node(newboard, DECK_SUB_1(deck), 1.0f, move, changed, 1);
         else if(tile == 2)
             res = score_tileinsert_node(newboard, DECK_SUB_2(deck), 1.0f, move, changed, 2);
+        else if(tile == 3)
+            res = score_tileinsert_node(newboard, DECK_SUB_3(deck), 1.0f, move, changed, 3);
         else {
-            if(DECK_3(deck))
-                res = score_tileinsert_node(newboard, DECK_SUB_3(deck), 1.0f, move, changed, 3);
-            if(maxrank >= 7) {
-                int a = DECK_1(deck);
-                int b = DECK_2(deck);
-                int c = DECK_3(deck);
-                int choices = maxrank - 6;
-                float highprob = ((float)(a+b+c)) / ((a + b + HIGH_CARD_FREQ * c) * choices);
+            int choices = maxrank - 6;
+            float highprob = 1.0f / choices;
 
-                float hres = 0;
-                int card;
+            int card;
 
-                for(card=0; card<choices; card++) {
-                    hres += score_tileinsert_node(newboard, deck, highprob, move, changed, card+4);
-                }
-
-                res = highprob * hres + (1-highprob) * res;
+            for(card=0; card<choices; card++) {
+                res += score_tileinsert_node(newboard, deck, highprob, move, changed, card+4);
             }
+
+            res *= highprob;
         }
 
         printf("Move %d: result %f, evaled %d moves (%d cached) in %.2f seconds (maxdepth=%d)\n", move, res,
