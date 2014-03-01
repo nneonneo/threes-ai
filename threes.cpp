@@ -528,7 +528,8 @@ void play_game(get_move_func_t get_move) {
         board = insert_tile(move, board, i, tile);
     }
 
-    printf("\nGame over. Your score is %.0f.\n", score_board(board));
+    printf("%s\n", BOARDSTR(board, '\n'));
+    printf("\nGame over. Your score is %.0f. The highest rank you achieved was %d.\n", score_board(board), get_max_rank(board));
 }
 
 int main(int argc, char **argv) {
