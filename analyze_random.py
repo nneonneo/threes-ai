@@ -2,9 +2,11 @@ from getmoves import getmove
 
 if __name__ == '__main__':
     from ocr import ocr
+    import os
+    import sys
     import glob
 
-    files = glob.glob('ocr/sample-game/IMG_*.PNG')
+    files = glob.glob(os.path.join(sys.argv[1], 'IMG_*.PNG'))
     files.sort()
 
     boards = []
@@ -21,4 +23,5 @@ if __name__ == '__main__':
         counts[ot] += 1
 
         move, t = getmove(boards[i][0], boards[i+1][0])
-        print boards[i][0].max(), move, t, ot, counts
+        if t > 3:
+            print i, boards[i][0].max(), move, t, ot, counts
