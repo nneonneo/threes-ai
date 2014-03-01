@@ -55,7 +55,7 @@ typedef uint32_t deck_t;
 #define DECK_WITH_MAXVAL(deck,mv) (((deck) & 0xffffff) | (mv << 24))
 #define DECK_MAXVAL(deck) (((deck) >> 24) & 0xff)
 
-#define HIGH_CARD_FREQ 24
+#define HIGH_CARD_FREQ 21
 
 /* Functions */
 #ifdef __cplusplus
