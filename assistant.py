@@ -37,34 +37,55 @@ def initial_deck():
 def movename(move):
     return ['up', 'down', 'left', 'right'][move]
 
-def rungame(d):
+def step(fn, board, deck):
+    newboard, tile = ocr(fn)
+    if deck is None:
+        deck = initial_deck() - Counter(newboard.flatten())
+        return newboard, deck, tile
+
+    if all(v == 0 for v in deck.values()):
+        deck = initial_deck()
+    move, t = getmove(board, newboard)
+    print "Previous move:", movename(move)
+    if t <= 3:
+        if deck[t] == 0:
+            raise Exception("Deck desynchronization detected!")
+        deck[t] -= 1
+    if all(v == 0 for v in deck.values()):
+        deck = initial_deck()
+
+    return newboard, deck, tile
+
+def rungame(args):
+    board = None
     deck = None
+    moveno = 0
 
-    for moveno, fn in enumerate(watchdir(d)):
+    d = args[0]
+    if len(args) == 2:
+        startpoint = os.path.basename(args[1])
+        for fn in os.listdir(d):
+            if fn >= startpoint:
+                fn = os.path.join(d, fn)
+                print
+                print os.path.basename(fn)
+                print "Move number", moveno+1
+                moveno += 1
+                board, deck, tile = step(fn, board, deck)
+
+    for fn in watchdir(d):
         print
+        print os.path.basename(fn)
         print "Move number", moveno+1
+        moveno += 1
+        board, deck, tile = step(fn, board, deck)
 
-        newboard, tile = ocr(fn)
-        if deck is None:
-            deck = initial_deck() - Counter(newboard.flatten())
-        else:
-            if all(v == 0 for v in deck.values()):
-                deck = initial_deck()
-            move, t = getmove(board, newboard)
-            print "Previous move:", movename(move)
-            if t <= 3:
-                if deck[t] == 0:
-                    raise Exception("Deck desynchronization detected!")
-                deck[t] -= 1
-            if all(v == 0 for v in deck.values()):
-                deck = initial_deck()
-        move = find_best_move(newboard, deck, tile)
+        move = find_best_move(board, deck, tile)
         if move < 0:
             break
         print "Recommended move:", movename(move)
         os.system('say ' + movename(move))
-        board = newboard
 
 if __name__ == '__main__':
     import sys
-    rungame(sys.argv[1])
+    rungame(sys.argv[1:])
