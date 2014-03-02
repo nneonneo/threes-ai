@@ -225,9 +225,9 @@ void init_score_tables(void) {
             int rank = (row >> (4*i)) & 0xf;
 
             if(rank == 0) {
-                heur_score += 12800;
+                heur_score += 10000;
             } else if(rank >= 3) {
-                heur_score += powf(3, rank-2);
+                //heur_score += powf(3, rank-2);
                 score += powf(3, rank-2);
             }
         }
@@ -242,7 +242,7 @@ void init_score_tables(void) {
     (tbl)[((board) >> 48) & ROW_MASK])
 
 static float score_heur_board(board_t board) {
-    return SCORE_BOARD(board, row_heur_score_table);
+    return SCORE_BOARD(board, row_heur_score_table) + 100000;
 }
 
 static float score_board(board_t board) {
