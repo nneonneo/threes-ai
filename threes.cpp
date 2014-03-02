@@ -365,16 +365,14 @@ static float _score_toplevel_move(eval_state &state, board_t board, deck_t deck,
         return score_tileinsert_node(state, newboard, DECK_SUB_3(deck), 1.0f, move, changed, 3);
     else {
         int choices = maxrank - 6;
-        float highprob = 1.0f / choices;
         float res = 0;
-
         int card;
 
         for(card=0; card<choices; card++) {
-            res += score_tileinsert_node(state, newboard, deck, highprob, move, changed, card+4);
+            res += score_tileinsert_node(state, newboard, deck, 1.0f, move, changed, card+4);
         }
 
-        return res * highprob;
+        return res / choices;
     }
 }
 
