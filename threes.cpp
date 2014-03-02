@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
+#include <sys/time.h>
 #include <map>
 
 #include "threes.h"
@@ -346,30 +346,27 @@ static float score_move_node(eval_state &state, board_t board, deck_t deck, floa
     return best;
 }
 
-float score_toplevel_move(board_t board, deck_t deck, int tile, int move) {
-    int maxrank = get_max_rank(board);
-    float res = 0;
+static float _score_toplevel_move(eval_state &state, board_t board, deck_t deck, int tile, int move) {
     int changed;
+    int maxrank = get_max_rank(board);
     board_t newboard = execute_move(move, board, &changed);
-    clock_t start = clock();
-    eval_state state;
-
-    deck = DECK_WITH_MAXVAL(deck, maxrank);
-
-    state.cprob_thresh = CPROB_THRESH_BASE / (maxrank - 2);
 
     if(!changed)
         return 0;
 
+    deck = DECK_WITH_MAXVAL(deck, maxrank);
+    state.cprob_thresh = CPROB_THRESH_BASE / (maxrank - 2);
+
     if(tile == 1)
-        res = score_tileinsert_node(state, newboard, DECK_SUB_1(deck), 1.0f, move, changed, 1);
+        return score_tileinsert_node(state, newboard, DECK_SUB_1(deck), 1.0f, move, changed, 1);
     else if(tile == 2)
-        res = score_tileinsert_node(state, newboard, DECK_SUB_2(deck), 1.0f, move, changed, 2);
+        return score_tileinsert_node(state, newboard, DECK_SUB_2(deck), 1.0f, move, changed, 2);
     else if(tile == 3)
-        res = score_tileinsert_node(state, newboard, DECK_SUB_3(deck), 1.0f, move, changed, 3);
+        return score_tileinsert_node(state, newboard, DECK_SUB_3(deck), 1.0f, move, changed, 3);
     else {
         int choices = maxrank - 6;
         float highprob = 1.0f / choices;
+        float res = 0;
 
         int card;
 
@@ -377,11 +374,25 @@ float score_toplevel_move(board_t board, deck_t deck, int tile, int move) {
             res += score_tileinsert_node(state, newboard, deck, highprob, move, changed, card+4);
         }
 
-        res *= highprob;
+        return res * highprob;
     }
+}
+
+float score_toplevel_move(board_t board, deck_t deck, int tile, int move) {
+    float res;
+    struct timeval start, finish;
+    double elapsed;
+    eval_state state;
+
+    gettimeofday(&start, NULL);
+    res = _score_toplevel_move(state, board, deck, tile, move);
+    gettimeofday(&finish, NULL);
+
+    elapsed = (finish.tv_sec - start.tv_sec);
+    elapsed += (finish.tv_usec - start.tv_usec) / 1000000.0;
 
     printf("Move %d: result %f: eval'd %d moves (%d cache hits, %zd cache size) in %.2f seconds (maxdepth=%d)\n", move, res,
-        state.moves_evaled, state.cachehits, state.trans_table.size(), ((float)(clock() - start)) / CLOCKS_PER_SEC, state.maxdepth);
+        state.moves_evaled, state.cachehits, state.trans_table.size(), elapsed, state.maxdepth);
 
     return res;
 }
