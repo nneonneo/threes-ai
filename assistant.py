@@ -28,7 +28,8 @@ def watchdir(d, sleeptime=0.1):
         time.sleep(sleeptime)
         new = set(os.listdir(d))
         for v in sorted(new - base):
-            yield os.path.join(d, v)
+            if not v.startswith('.'):
+                yield os.path.join(d, v)
         base = new
 
 def initial_deck():
