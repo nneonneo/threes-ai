@@ -9,8 +9,6 @@
 
 #include "threes.h"
 
-static int moves_evaled = 0;
-
 /* We can perform state lookups one row at a time by using arrays with 65536 entries. */
 
 /* Move tables. Each row or compressed column is mapped to (oldrow^newrow) assuming row/col 0.
@@ -144,7 +142,6 @@ static inline board_t execute_move_3(board_t board, int *changed) {
  * where the ith bit of changed_bits is set iff row/col i moved.
  */
 static inline board_t execute_move(int move, board_t board, int *changed) {
-    moves_evaled++;
     switch(move) {
     case 0: // up
         return execute_move_0(board, changed);
@@ -189,18 +186,29 @@ static inline board_t insert_tile(int move, board_t board, int pos, int tile) {
 /* Optimizing the game */
 static float row_heur_score_table[65536];
 static float row_score_table[65536];
-static std::map<board_t, float> trans_table;
+
+struct eval_state {
+    std::map<board_t, float> trans_table; // transposition table, to cache previously-seen moves
+    float cprob_thresh;
+    int maxdepth;
+    int curdepth;
+    int cachehits;
+    int moves_evaled;
+
+    eval_state() : cprob_thresh(0), maxdepth(0), curdepth(0), cachehits(0), moves_evaled(0) {
+    }
+};
 
 // score a single board heuristically
 static float score_heur_board(board_t board);
 // score a single board actually
 static float score_board(board_t board);
 // score over all possible moves
-static float score_move_node(board_t board, deck_t deck, float cprob);
+static float score_move_node(eval_state &state, board_t board, deck_t deck, float cprob);
 // score over all possible tile choices
-static float score_tilechoose_node(board_t board, deck_t deck, float cprob, int move, int changed);
+static float score_tilechoose_node(eval_state &state, board_t board, deck_t deck, float cprob, int move, int changed);
 // score over all possible tile placements
-static float score_tileinsert_node(board_t board, deck_t deck, float cprob, int move, int changed, int tile);
+static float score_tileinsert_node(eval_state &state, board_t board, deck_t deck, float cprob, int move, int changed, int tile);
 
 void init_score_tables(void) {
     unsigned row;
@@ -241,20 +249,20 @@ static float score_board(board_t board) {
     return SCORE_BOARD(board, row_score_table);
 }
     
-static float score_tileinsert_node(board_t board, deck_t deck, float cprob, int move, int changed, int tile) {
+static float score_tileinsert_node(eval_state &state, board_t board, deck_t deck, float cprob, int move, int changed, int tile) {
     float res = 0;
     float factor = 1.0f / (changed >> 8);
     int pos;
     cprob *= factor;
     for(pos=0; pos<4; pos++) {
         if(changed & (1<<pos))
-            res += score_move_node(insert_tile(move, board, pos, tile), deck, cprob);
+            res += score_move_node(state, insert_tile(move, board, pos, tile), deck, cprob);
     }
 
     return res * factor;
 }
 
-static float score_tilechoose_node(board_t board, deck_t deck, float cprob, int move, int changed) {
+static float score_tilechoose_node(eval_state &state, board_t board, deck_t deck, float cprob, int move, int changed) {
     float res = 0;
     int mv = DECK_MAXVAL(deck);
 
@@ -273,7 +281,7 @@ static float score_tilechoose_node(board_t board, deck_t deck, float cprob, int 
         int i;
 
         for(i=0; i<choices; i++) {
-            hres += score_tileinsert_node(board, deck, cprob / choices / HIGH_CARD_FREQ, move, changed, i+4);
+            hres += score_tileinsert_node(state, board, deck, cprob / choices / HIGH_CARD_FREQ, move, changed, i+4);
         }
         hres /= (choices * HIGH_CARD_FREQ);
 
@@ -281,11 +289,11 @@ static float score_tilechoose_node(board_t board, deck_t deck, float cprob, int 
     }
 
     if(a)
-        res += score_tileinsert_node(board, DECK_SUB_1(deck), cprob / div * a, move, changed, 1) * a;
+        res += score_tileinsert_node(state, board, DECK_SUB_1(deck), cprob / div * a, move, changed, 1) * a;
     if(b)
-        res += score_tileinsert_node(board, DECK_SUB_2(deck), cprob / div * b, move, changed, 2) * b;
+        res += score_tileinsert_node(state, board, DECK_SUB_2(deck), cprob / div * b, move, changed, 2) * b;
     if(c)
-        res += score_tileinsert_node(board, DECK_SUB_3(deck), cprob / div * c, move, changed, 3) * c;
+        res += score_tileinsert_node(state, board, DECK_SUB_3(deck), cprob / div * c, move, changed, 3) * c;
 
     res /= div;
     res += hres;
@@ -296,24 +304,20 @@ static float score_tilechoose_node(board_t board, deck_t deck, float cprob, int 
 /* Statistics and controls */
 // cprob: cumulative probability
 /* don't recurse into a node with a cprob less than this threshold */
-#define CPROB_THRESH_BASE (2e-3f)
-#define CACHE_DEPTH_LIMIT 5
-static float cprob_thresh = 0;
-static int maxdepth = 0;
-static int curdepth = 0;
-static int cachehits = 0;
+#define CPROB_THRESH_BASE (1e-3f)
+#define CACHE_DEPTH_LIMIT 4
 
-static float score_move_node(board_t board, deck_t deck, float cprob) {
-    if(cprob < cprob_thresh) {
-        if(curdepth > maxdepth)
-            maxdepth = curdepth;
+static float score_move_node(eval_state &state, board_t board, deck_t deck, float cprob) {
+    if(cprob < state.cprob_thresh) {
+        if(state.curdepth > state.maxdepth)
+            state.maxdepth = state.curdepth;
         return score_heur_board(board);
     }
 
-    if(curdepth < CACHE_DEPTH_LIMIT) {
-        const auto &i = trans_table.find(board);
-        if(i != trans_table.end()) {
-            cachehits++;
+    if(state.curdepth < CACHE_DEPTH_LIMIT) {
+        const auto &i = state.trans_table.find(board);
+        if(i != state.trans_table.end()) {
+            state.cachehits++;
             return i->second;
         }
     }
@@ -321,24 +325,65 @@ static float score_move_node(board_t board, deck_t deck, float cprob) {
     int move;
     float best = 0;
 
-    curdepth++;
+    state.curdepth++;
     for(move=0; move<4; move++) {
         int changed;
         board_t newboard = execute_move(move, board, &changed);
+        state.moves_evaled++;
         if(!changed)
             continue;
 
-        float res = score_tilechoose_node(newboard, deck, cprob, move, changed);
+        float res = score_tilechoose_node(state, newboard, deck, cprob, move, changed);
         if(res > best)
             best = res;
     }
-    curdepth--;
+    state.curdepth--;
 
-    if(curdepth < CACHE_DEPTH_LIMIT) {
-        trans_table[board] = best;
+    if(state.curdepth < CACHE_DEPTH_LIMIT) {
+        state.trans_table[board] = best;
     }
 
     return best;
+}
+
+float score_toplevel_move(board_t board, deck_t deck, int tile, int move) {
+    int maxrank = get_max_rank(board);
+    float res = 0;
+    int changed;
+    board_t newboard = execute_move(move, board, &changed);
+    clock_t start = clock();
+    eval_state state;
+
+    deck = DECK_WITH_MAXVAL(deck, maxrank);
+
+    state.cprob_thresh = CPROB_THRESH_BASE / (maxrank - 2);
+
+    if(!changed)
+        return 0;
+
+    if(tile == 1)
+        res = score_tileinsert_node(state, newboard, DECK_SUB_1(deck), 1.0f, move, changed, 1);
+    else if(tile == 2)
+        res = score_tileinsert_node(state, newboard, DECK_SUB_2(deck), 1.0f, move, changed, 2);
+    else if(tile == 3)
+        res = score_tileinsert_node(state, newboard, DECK_SUB_3(deck), 1.0f, move, changed, 3);
+    else {
+        int choices = maxrank - 6;
+        float highprob = 1.0f / choices;
+
+        int card;
+
+        for(card=0; card<choices; card++) {
+            res += score_tileinsert_node(state, newboard, deck, highprob, move, changed, card+4);
+        }
+
+        res *= highprob;
+    }
+
+    printf("Move %d: result %f: eval'd %d moves (%d cache hits, %zd cache size) in %.2f seconds (maxdepth=%d)\n", move, res,
+        state.moves_evaled, state.cachehits, state.trans_table.size(), ((float)(clock() - start)) / CLOCKS_PER_SEC, state.maxdepth);
+
+    return res;
 }
 
 /* Find the best move for a given board, deck and upcoming tile.
@@ -347,52 +392,15 @@ static float score_move_node(board_t board, deck_t deck, float cprob) {
  * This enables correct behaviour for 3+ tiles. */
 int find_best_move(board_t board, deck_t deck, int tile) {
     int move;
-    int maxrank = get_max_rank(board);
     float best = 0;
     int bestmove = -1;
-
-    deck = DECK_WITH_MAXVAL(deck, maxrank);
 
     printf("%s\n", BOARDSTR(board, '\n'));
     printf("Current scores: heur %.0f, actual %.0f\n", score_heur_board(board), score_board(board));
     printf("Next tile: %d (deck=%08x)\n", tile, deck);
 
     for(move=0; move<4; move++) {
-        float res = 0;
-        int changed;
-        board_t newboard = execute_move(move, board, &changed);
-        clock_t start = clock();
-
-        moves_evaled = 0;
-        maxdepth = 0;
-        cachehits = 0;
-        cprob_thresh = CPROB_THRESH_BASE / (maxrank - 2);
-        trans_table.clear();
-
-        if(!changed)
-            continue;
-
-        if(tile == 1)
-            res = score_tileinsert_node(newboard, DECK_SUB_1(deck), 1.0f, move, changed, 1);
-        else if(tile == 2)
-            res = score_tileinsert_node(newboard, DECK_SUB_2(deck), 1.0f, move, changed, 2);
-        else if(tile == 3)
-            res = score_tileinsert_node(newboard, DECK_SUB_3(deck), 1.0f, move, changed, 3);
-        else {
-            int choices = maxrank - 6;
-            float highprob = 1.0f / choices;
-
-            int card;
-
-            for(card=0; card<choices; card++) {
-                res += score_tileinsert_node(newboard, deck, highprob, move, changed, card+4);
-            }
-
-            res *= highprob;
-        }
-
-        printf("Move %d: result %f: eval'd %d moves (%d cache hits, %zd cache size) in %.2f seconds (maxdepth=%d)\n", move, res,
-            moves_evaled, cachehits, trans_table.size(), ((float)(clock() - start)) / CLOCKS_PER_SEC, maxdepth);
+        float res = score_toplevel_move(board, deck, tile, move);
 
         if(res > best) {
             best = res;
