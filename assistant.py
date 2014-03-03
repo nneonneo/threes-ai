@@ -92,7 +92,7 @@ def rungame(args):
     if len(args) == 2:
         startpoint = os.path.basename(args[1])
         for fn in os.listdir(d):
-            if fn >= startpoint:
+            if fn >= startpoint and not fn.startswith('.'):
                 fn = os.path.join(d, fn)
                 print
                 print os.path.basename(fn)
