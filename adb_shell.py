@@ -383,6 +383,8 @@ class ADBShell:
             self.prompt = prompt
 
         self._popen = None
+        # XXX HACK: Prevent readline from messing with entered text
+        self.execute('COLUMNS=10000000')
 
     def __del__(self):
         # Can also write '\n~.', a magic ssh-derived sequence that causes an immediate disconnect.
@@ -416,7 +418,7 @@ class ADBShell:
             collected.extend(s)
 
         if collected[:len(expected)] != expected:
-            warn("expected %r, got %r" % (collected[:len(expected)], expected))
+            warn("expected %r, got %r" % (expected, collected[:len(expected)]))
         else:
             del collected[:len(expected)]
 
