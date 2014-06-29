@@ -1,6 +1,5 @@
 ''' Help the user achieve a high score in a real game of threes by using a move searcher. '''
 
-import ctypes
 import time
 import os
 from collections import Counter
@@ -8,45 +7,7 @@ from collections import Counter
 from ocr import ocr
 from getmoves import getmove
 from threes import to_score, to_val
-
-threes = ctypes.CDLL('bin/threes.dylib')
-threes.init_move_tables()
-threes.init_score_tables()
-
-threes.find_best_move.argtypes = [ctypes.c_uint64, ctypes.c_uint32, ctypes.c_int]
-threes.score_toplevel_move.argtypes = [ctypes.c_uint64, ctypes.c_uint32, ctypes.c_int, ctypes.c_int]
-threes.score_toplevel_move.restype = ctypes.c_float
-
-MULTITHREAD = True
-
-def get_c_state(m, deck):
-    board = 0
-    for i,v in enumerate(m.flatten()):
-        board |= v << (4*i)
-    deck = (m.max() << 24) | (deck[1]) | (deck[2] << 8) | (deck[3] << 16)
-    return board, deck
-
-if MULTITHREAD:
-    from multiprocessing.pool import ThreadPool
-    pool = ThreadPool(4)
-    def score_toplevel_move(args):
-        return threes.score_toplevel_move(*args)
-
-    def find_best_move(m, deck, tile):
-        board, deck = get_c_state(m, deck)
-
-        print to_val(m)
-        print "Current score:", to_score(m).sum()
-        print "Next tile: %d (deck=%08x)" % (tile, deck)
-
-        scores = pool.map(score_toplevel_move, [(board, deck, tile, move) for move in xrange(4)])
-        bestmove, bestscore = max(enumerate(scores), key=lambda x:x[1])
-        return bestmove
-else:
-    def find_best_move(m, deck, tile):
-        board, deck = get_c_state(m, deck)
-
-        return threes.find_best_move(board, deck, tile)
+from threes_ai_c import find_best_move
 
 def watchdir(d, sleeptime=0.1):
     base = set(os.listdir(d))
@@ -106,6 +67,10 @@ def rungame(args):
         print "Move number", moveno+1
         moveno += 1
         board, deck, tile = step(fn, board, deck)
+
+        print to_val(board)
+        print "Current score:", to_score(board).sum()
+        print "Next tile: %d (deck=1:%d, 2:%d, 3:%d)" % (tile, deck[1], deck[2], deck[3])
 
         move = find_best_move(board, deck, tile)
         if move < 0:

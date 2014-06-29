@@ -77,7 +77,6 @@ def play_game():
             tile = deck.pop()
 
         move = yield m, tile, valid
-        moveno += 1
 
         if not valid:
             break
@@ -105,8 +104,8 @@ def play_game_interactive():
             print "Your score is", to_score(m).sum()
             break
 
-        if tile >= 3:
-            print 'next tile: 3+'
+        if tile > 3:
+            print 'next tile: 6+'
         else:
             print 'next tile:', tile
 
