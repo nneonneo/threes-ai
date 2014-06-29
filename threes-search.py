@@ -1,5 +1,9 @@
+''' Crude pure-Python expectimax AI for Threes! '''
+
 from threes import *
 from utils import lru_cache
+
+__author__ = 'Robert Xiao <nneonneo@gmail.com>'
 
 def score_board(m):
     return to_score(m).sum() / ((m > 0).sum() ** 2.)

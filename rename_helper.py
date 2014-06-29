@@ -8,6 +8,8 @@ import os
 import shutil
 import time
 
+__author__ = 'Robert Xiao <nneonneo@gmail.com>'
+
 def watchdir(d, sleeptime=0.1):
     base = set()
     while 1:

@@ -1,4 +1,8 @@
+''' Basic Python implementation of Threes! '''
+
 import numpy as np
+
+__author__ = 'Robert Xiao <nneonneo@gmail.com>'
 
 def to_val(x):
     return np.where(x < 3, x, 3*2**(x-3))

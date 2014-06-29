@@ -2,6 +2,8 @@
 
 from threes import *
 
+__author__ = 'Robert Xiao <nneonneo@gmail.com>'
+
 def getmove(m1, m2):
     ''' return (move, tile) or None if it cannot be determined uniquely '''
 
@@ -45,6 +47,7 @@ def getmove(m1, m2):
         return possible[0]
 
 if __name__ == '__main__':
+    # A simple demonstration/test of getmoves
     from ocr import ocr
     import glob
 

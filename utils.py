@@ -1,3 +1,5 @@
+''' Basic useful utilities. '''
+
 import os
 import sys
 from collections import Counter, deque
@@ -5,6 +7,8 @@ import functools
 from itertools import ifilterfalse
 import contextlib
 import subprocess
+
+__author__ = 'Robert Xiao <nneonneo@gmail.com>'
 
 @contextlib.contextmanager
 def redirect_stdout(f):
