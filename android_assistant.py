@@ -17,7 +17,7 @@ fmt_sshot = r'S_%06d.png'
 def gen_board_mem(shell):
     from cStringIO import StringIO
     while True:
-        sshot_data = shell.runcmd('screencap -p')
+        sshot_data = shell.execute('screencap -p')
         sshot_file = StringIO(sshot_data)
         board, tile = ocr(sshot_file)
         yield board, tile, False
@@ -36,7 +36,7 @@ def gen_board_disk(shell, d, resume=False):
             curnum = int(re.match(re_sshot, last).group(1), 10)+1
 
     while True:
-        sshot_data = shell.runcmd('screencap -p')
+        sshot_data = shell.execute('screencap -p')
         fn = fmt_sshot % curnum
         dfn = os.path.join(d, fn)
         curnum += 1
@@ -86,4 +86,3 @@ def main(argv):
 if __name__ == '__main__':
     import sys
     exit(main(sys.argv[1:]))
-

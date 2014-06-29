@@ -10,6 +10,7 @@ import errno
 import sys
 import re
 import select
+from signal import SIGHUP
 try:
     from pipes import quote as shellquote
 except ImportError:
@@ -56,6 +57,10 @@ class ShellCommandException(OSError):
 
 class ADBShell:
     def __init__(self, opts=None):
+        # Module objects are deleted at shutdown; retain a SIGHUP reference
+        # so we can use it in __del__.
+        self.SIGHUP = SIGHUP
+
         cmd = ['adb']
         if opts:
             cmd.extend(opts)
@@ -109,6 +114,9 @@ class ADBShell:
 
             self.prompt = prompt
 
+    def __del__(self):
+        self.proc.send_signal(self.SIGHUP)
+
     def _wait_for_echo(self, cmd):
         # Assume PS2="> "
         expected = re.sub(br'[\r\n]', br'\r\r\n> ', cmd) + b'\r\r\n'
@@ -127,7 +135,7 @@ class ADBShell:
 
         return collected
 
-    def runcmd(self, cmd):
+    def execute(self, cmd):
         ''' Run the specified command through the shell and return the result.
         
         Raises ShellCommandException if the command returns an error code.'''
