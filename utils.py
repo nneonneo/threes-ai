@@ -4,8 +4,6 @@ from collections import Counter, deque
 import functools
 from itertools import ifilterfalse
 import contextlib
-import wave
-import numpy as np
 import subprocess
 
 @contextlib.contextmanager
@@ -141,36 +139,3 @@ else:
 def say(text):
     if sys.platform == 'darwin':
         subprocess.call(['say', text], stderr=open('/dev/null', 'w'))
-
-def readwav(fn, wavchan=None):
-    ''' read a 16-bit PCM WAVE file as a Numpy array '''
-    # wave.open should support contexts :(
-    with contextlib.closing(wave.open(fn)) as f:
-        frames = f.readframes(f.getnframes())
-    if wavchan is None:
-        return np.frombuffer(frames, '<i2')
-    else:
-        return np.frombuffer(frames, '<i2')[wavchan::f.getnchannels()]
-
-def parse_dir(dirname):
-    '''Parses a directory that contains fingersense data'''
-    app, timestamp, classlabel = dirname.split('-')
-    return (app, timestamp, classlabel)
-
-def get_arg(args, name, default=None):
-    '''Get an argument from an argument dictionary or argparse.Namespace.
-    Return default if the argument is not found, or is None.'''
-    if args is None:
-        return default
-    try:
-        res = getattr(args, name, default)
-    except AttributeError:
-        res = args.get(name, default)
-    if res is None:
-        return default
-    return res
-
-def fmt_argv_arg(arg):
-    if "'" in arg or '"' in arg or ' ' in arg or '\\' in arg:
-        return repr(arg)
-    return arg
