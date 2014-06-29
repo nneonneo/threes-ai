@@ -10,6 +10,7 @@ import re
 
 from ocr import ocr
 from base_assistant import run_assistant
+from android_inputemu import get_ident, playback_gesture
 
 re_sshot = r'^S_(\d{6}).png$'
 fmt_sshot = r'S_%06d.png'
@@ -46,10 +47,11 @@ def gen_board_disk(shell, d, resume=False):
         board, tile = ocr(dfn)
         yield board, tile, False
 
-def make_move(move):
-    print "Recommended move:", move
-    os.system('say ' + move)
-    time.sleep(2)
+def make_move_func(shell, ident):
+    def make_move(move):
+        playback_gesture(shell, ident, move)
+        time.sleep(1)
+    return make_move
 
 def rungame(args):
     d = args[0]
@@ -73,15 +75,16 @@ def main(argv):
     args = parse_args(argv)
 
     shell = ADBShell()
+    ident = get_ident(shell)
 
     if args.outdir:
         try:
             os.makedirs(args.outdir)
         except OSError:
             pass
-        run_assistant(gen_board_disk(shell, args.outdir, args.resume), make_move)
+        run_assistant(gen_board_disk(shell, args.outdir, args.resume), make_move_func(shell, ident))
     else:
-        run_assistant(gen_board_mem(shell), make_move)
+        run_assistant(gen_board_mem(shell), make_move_func(shell, ident))
 
 if __name__ == '__main__':
     import sys
