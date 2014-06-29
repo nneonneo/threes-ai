@@ -1,7 +1,6 @@
 ''' Crude pure-Python expectimax AI for Threes! '''
 
 from threes import *
-from utils import lru_cache
 
 __author__ = 'Robert Xiao <nneonneo@gmail.com>'
 
