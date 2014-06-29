@@ -14,6 +14,7 @@ CONFIGS = {
     # sw,sh: screen width and height (set automatically)
 
     (640, 1136): dict(x0=92, y0=348,  w=96, h=80,  dx=120, dy=160,  tx=320, ty=146),    # Retina 4" iPhone/iPod
+    (1080, 1920): dict(x0=155, y0=518,  w=162, h=135,  dx=202.5, dy=270,  tx=540, ty=207),    # Nexus 5
 }
 
 for w,h in CONFIGS:
@@ -42,7 +43,7 @@ def extract(cfg, im, r, c):
     x = cfg['x0'] + c*cfg['dx']
     y = cfg['y0'] + r*cfg['dy']
 
-    return im.crop((x, y, x+cfg['w'], y+cfg['h']))
+    return im.crop((int(x), int(y), int(x+cfg['w']), int(y+cfg['h'])))
 
 def config_for_image(im):
     w,h = im.size
@@ -84,7 +85,7 @@ def classify(cfg, imc):
     return exemplars[key]
 
 def find_next_tile(cfg, im):
-    px = im.getpixel((cfg['tx'], cfg['ty']))
+    px = im.getpixel((cfg['tx'], cfg['ty']))[:3]
     ret = {
         (102, 204, 255): 1,
         (255, 102, 128): 2,
