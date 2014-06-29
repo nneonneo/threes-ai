@@ -115,6 +115,7 @@ class ADBShell:
             self.prompt = prompt
 
     def __del__(self):
+        # Can also write '\n~.', a magic ssh-derived sequence that causes an immediate disconnect.
         self.proc.send_signal(self.SIGHUP)
 
     def _wait_for_echo(self, cmd):
