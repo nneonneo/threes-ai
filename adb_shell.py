@@ -126,6 +126,7 @@ class _ADBPopenStdout:
                     return self._grab_locked(size)
 
                 if self.nonblocking:
+                    # Return whatever we've got.
                     return self._grab_locked()
                 else:
                     self._datacond.wait(1000)
@@ -147,7 +148,8 @@ class _ADBPopenStdout:
                     return self._grab_locked(pos+1)
 
                 if self.nonblocking:
-                    return self._grab_locked()
+                    # Return complete lines or nothing.
+                    return self._grab_locked(0)
                 else:
                     self._datacond.wait(1000)
 
