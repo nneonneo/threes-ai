@@ -5,43 +5,66 @@ import re
 
 DNAME = os.path.dirname(__file__)
 
+CONFIGS = {
+    # (screen_width, screen_height): settings dictionary
+    # x0,y0: top left corner of the first tile
+    # w,h: size of the tile sample
+    # dx,dy: spacing between adjacent tiles
+    # tx,ty: next-tile sample point
+    # sw,sh: screen width and height (set automatically)
+
+    (640, 1136): dict(x0=92, y0=348,  w=96, h=80,  dx=120, dy=160,  tx=320, ty=146),    # Retina 4" iPhone/iPod
+}
+
+for w,h in CONFIGS:
+    CONFIGS[w,h]['sw'] = w
+    CONFIGS[w,h]['sh'] = h
+
 def to_ind(val):
     return {0:0, 1:1, 2:2, 3:3, 6:4, 12:5, 24:6, 48:7, 96:8, 192:9, 384:10, 768:11, 1536:12, 3072:13}[val]
 
 def to_imgkey(imc):
     return np.asarray(imc).tostring()
 
-def load_exemplars():
+def get_exemplar_dir(cfg):
+    return os.path.join(DNAME, 'exemplars', '%dx%d' % (cfg['sw'], cfg['sh']))
+
+def load_exemplars(cfg):
     import glob
     data = {}
-    for fn in glob.glob(os.path.join(DNAME, 'exemplars', '*.png')):
+    for fn in glob.glob(os.path.join(get_exemplar_dir(cfg), '*.png')):
         val = re.findall(r'.*/(\d+).*\.png', fn)[0]
         data[to_imgkey(Image.open(fn))] = int(val)
+    cfg['exemplars'] = data
     return data
 
-def extract(im, r, c):
-    x0, y0 = 92, 348
-    w, h = 96, 80
-    dx, dy = 120, 160
+def extract(cfg, im, r, c):
+    x = cfg['x0'] + c*cfg['dx']
+    y = cfg['y0'] + r*cfg['dy']
 
-    x = x0 + c*dx
-    y = y0 + r*dy
+    return im.crop((x, y, x+cfg['w'], y+cfg['h']))
 
-    return im.crop((x, y, x+w, y+h))
+def config_for_image(im):
+    w,h = im.size
+    if (w,h) not in CONFIGS:
+        raise Exception("No OCR configuration for screen size %dx%d!" % (w,h))
+    return CONFIGS[w,h]
 
 def saveall(fn):
     im = Image.open(fn)
+    cfg = config_for_image(im)
     fn, ext = os.path.splitext(fn)
 
     for r in xrange(4):
         for c in xrange(4):
-            extract(im, r, c).save(fn + '-r%dc%d.png' % (r,c))
+            extract(cfg, im, r, c).save(fn + '-r%dc%d.png' % (r,c))
 
 #saveall('sample/IMG_3189.PNG')
-exemplars = load_exemplars()
 
-def classify(imc):
-    global exemplars
+def classify(cfg, imc):
+    if 'exemplars' not in cfg:
+        load_exemplars(cfg)
+    exemplars = cfg['exemplars']
 
     key = to_imgkey(imc)
     val = exemplars.get(key, None)
@@ -51,17 +74,17 @@ def classify(imc):
     imc.show()
     vst = raw_input("Unrecognized object! Recognize it and type in the value: ")
     for i in xrange(1, 1000):
-        fn = os.path.join(DNAME, 'exemplars', '%s.%d.png' % (vst, i))
+        fn = os.path.join(get_exemplar_dir(cfg), '%s.%d.png' % (vst, i))
         if not os.path.isfile(fn):
             imc.save(fn)
             break
     else:
         print "Failed to save exemplar."
-    exemplars = load_exemplars()
+    exemplars = load_exemplars(cfg)
     return exemplars[key]
 
-def find_next_tile(im):
-    px = im.getpixel((320, 146))
+def find_next_tile(cfg, im):
+    px = im.getpixel((cfg['tx'], cfg['ty']))
     ret = {
         (102, 204, 255): 1,
         (255, 102, 128): 2,
@@ -74,15 +97,16 @@ def find_next_tile(im):
 
 def ocr(fn):
     im = Image.open(fn)
+    cfg = config_for_image(im)
 
     out = np.zeros((4,4), dtype=int)
 
     for r in xrange(4):
         for c in xrange(4):
-            imc = extract(im, r, c)
-            out[r,c] = to_ind(classify(imc))
+            imc = extract(cfg, im, r, c)
+            out[r,c] = to_ind(classify(cfg, imc))
 
-    return out, find_next_tile(im)
+    return out, find_next_tile(cfg, im)
 
 if __name__ == '__main__':
     import sys
