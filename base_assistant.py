@@ -53,18 +53,17 @@ def getmove(m1, m2):
 def initial_deck():
     return Counter([1]*4 + [2]*4 + [3]*4)
 
-def movename(move):
-    return 
+movenames = ['up', 'down', 'left', 'right']
 
 def _step(board, deck, newboard):
     if deck is None:
         deck = initial_deck() - Counter(newboard.flatten())
-        return newboard, deck
+        return deck
 
     if all(v == 0 for v in deck.values()):
         deck = initial_deck()
     move, t = getmove(board, newboard)
-    print "Previous move:", movename(move)
+    print "Previous move:", movenames[move]
     if t <= 3:
         if deck[t] == 0:
             raise Exception("Deck desynchronization detected!")
@@ -72,7 +71,7 @@ def _step(board, deck, newboard):
     if all(v == 0 for v in deck.values()):
         deck = initial_deck()
 
-    return newboard, deck
+    return deck
 
 def run_assistant(gen_board, make_move_func):
     ''' Run the assistant.
@@ -85,14 +84,14 @@ def run_assistant(gen_board, make_move_func):
     board = None
     deck = None
     moveno = 0
-    movenames = ['up', 'down', 'left', 'right']
 
     for newboard, tile, skip_move in gen_board:
         print
         print "Move number", moveno+1
         moveno += 1
 
-        board, deck = _step(board, deck, newboard)
+        deck = _step(board, deck, newboard)
+        board = newboard.copy()
 
         print to_val(board)
         print "Current score:", to_score(board).sum()
@@ -105,16 +104,22 @@ def run_assistant(gen_board, make_move_func):
             make_move_func(movenames[move])
 
 if __name__ == '__main__':
-    # A simple demonstration/test of getmove
-    from ocr import ocr
-    import glob
+    # A simple demonstration of the assistant.
+    move = None
+    game = play_game()
+    movenum = dict((j,i) for i,j in enumerate(movenames))
 
-    files = glob.glob('ocr/sample-game/IMG_*.PNG')
-    files.sort()
+    def gen_board():
+        while True:
+            m, tile, valid = game.send(move)
+            if not valid:
+                print "Game over."
+                break
+            yield m, tile, False
 
-    boards = []
-    for fn in files:
-        boards.append(ocr(fn))
+    def make_move(mv):
+        global move
+        print "Recommended move:", mv
+        move = movenum[mv]
 
-    for i in xrange(len(boards)-1):
-        print getmove(boards[i][0], boards[i+1][0]), boards[i][1]
+    run_assistant(gen_board(), make_move)
