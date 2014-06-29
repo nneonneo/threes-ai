@@ -1,6 +1,6 @@
 CPPFLAGS += -O3 -Wall -Werror -Wextra -std=c++11
 
-all: bin/threes bin/threes.dylib bin/2048 bin/2048.dylib
+all: bin/threes bin/threes.dylib
 
 bin:
 	mkdir bin 2>/dev/null || true
