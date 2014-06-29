@@ -4,6 +4,7 @@ from adb_shell import ADBShell
 import time
 import re
 import os
+import struct
 
 __author__ = 'Robert Xiao <nneonneo@gmail.com>'
 
@@ -24,8 +25,19 @@ def get_ident(shell):
     props = get_build_prop(shell)
     return '%(ro.product.manufacturer)s %(ro.product.model)s %(ro.build.id)s'%props
 
-def _write_event(shell, dev, type, value, code):
-    shell.execute('sendevent %s %d %d %d' % (dev, type, value, code))
+def _write_events(shell, events):
+    # sendevent is slow.
+    # for dev, type, value, code in events:
+    #     shell.execute('sendevent %s %d %d %d' % (dev, type, value, code))
+    dat = {}
+    for dev, type, value, code in events:
+        if dev not in dat:
+            dat[dev] = []
+        dat[dev].append(struct.pack('<IIHHi', 0, 0, type, value, code))
+
+    for dev in dat:
+        s = ''.join('\\x%02x' % ord(c) for c in ''.join(dat[dev]))
+        shell.execute("echo -ne '%s' > %s" % (s, dev))
 
 def playback_gesture(shell, ident, gesture):
     gestfn = os.path.join('events', ident, gesture + '.txt')
@@ -34,6 +46,8 @@ def playback_gesture(shell, ident, gesture):
 
     start_ts = None
     start = None
+    pack = []
+    pack_start_ts = None
     with open(gestfn) as f:
         for line in f:
             line = line.strip()
@@ -48,12 +62,21 @@ def playback_gesture(shell, ident, gesture):
             if start_ts is None:
                 start_ts = ts
                 start = time.time()
+
+            if pack_start_ts is None or ts - pack_start_ts < 0.010:
+                if pack_start_ts is None:
+                    pack_start_ts = ts
+                pack.append((dev, type, value, code))
             else:
+                _write_events(shell, pack)
+                pack = [(dev, type, value, code)]
+                pack_start_ts = ts
+
                 sleeptime = (ts - start_ts) - (time.time() - start)
                 if sleeptime > 0.001:
                     time.sleep(sleeptime)
 
-            _write_event(shell, dev, type, value, code)
+        _write_events(shell, pack)
 
 def readlines_timed(f, tottime):
     start = time.time()
