@@ -72,7 +72,7 @@ def classify(cfg, imc):
         return val
 
     imc.show()
-    vst = raw_input("Unrecognized object! Recognize it and type in the value: ")
+    vst = raw_input("\aUnrecognized object! Recognize it and type in the value: ")
     for i in xrange(1, 1000):
         fn = os.path.join(get_exemplar_dir(cfg), '%s.%d.png' % (vst, i))
         if not os.path.isfile(fn):
