@@ -30,12 +30,16 @@ def to_imgkey(imc):
 def get_exemplar_dir(cfg):
     return os.path.join(DNAME, 'exemplars', '%dx%d' % (cfg['sw'], cfg['sh']))
 
-def load_exemplars(cfg):
+def get_exemplars(cfg):
     import glob
-    data = {}
     for fn in glob.glob(os.path.join(get_exemplar_dir(cfg), '*.png')):
         val = re.findall(r'.*/(\d+).*\.png', fn)[0]
-        data[to_imgkey(Image.open(fn))] = int(val)
+        yield int(val), Image.open(fn)
+
+def load_exemplars(cfg):
+    data = {}
+    for val, im in get_exemplars(cfg):
+        data[to_imgkey(im)] = val
     cfg['exemplars'] = data
     return data
 
@@ -62,6 +66,19 @@ def saveall(fn):
 
 #saveall('sample/IMG_3189.PNG')
 
+def guess_classify(cfg, imc):
+    THRESH = 10000
+    possible = set()
+    for val, im in get_exemplars(cfg):
+        err = np.asarray(im).astype(float) - np.asarray(imc).astype(float)
+        if 0 < np.abs(err).sum() < THRESH:
+            possible.add(val)
+    if len(possible) == 1:
+        return possible.pop()
+    elif len(possible) > 1:
+        print "Warning: multiple matches %s; guesser may not be accurate!" % possible
+    return None
+
 def classify(cfg, imc):
     if 'exemplars' not in cfg:
         load_exemplars(cfg)
@@ -72,10 +89,15 @@ def classify(cfg, imc):
     if val is not None:
         return val
 
-    imc.show()
-    vst = raw_input("\aUnrecognized object! Recognize it and type in the value: ")
-    for i in xrange(1, 1000):
-        fn = os.path.join(get_exemplar_dir(cfg), '%s.%d.png' % (vst, i))
+    val = guess_classify(cfg, imc)
+    if val is not None:
+        print "Unrecognized object automatically classified as %d" % val
+    else:
+        imc.show()
+        val = raw_input("\aUnrecognized object! Recognize it and type in the value: ")
+
+    for i in xrange(1, 10000):
+        fn = os.path.join(get_exemplar_dir(cfg), '%s.%d.png' % (val, i))
         if not os.path.isfile(fn):
             imc.save(fn)
             break
