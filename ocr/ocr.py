@@ -22,7 +22,7 @@ for w,h in CONFIGS:
     CONFIGS[w,h]['sh'] = h
 
 def to_ind(val):
-    return {0:0, 1:1, 2:2, 3:3, 6:4, 12:5, 24:6, 48:7, 96:8, 192:9, 384:10, 768:11, 1536:12, 3072:13}[val]
+    return {0:0, 1:1, 2:2, 3:3, 6:4, 12:5, 24:6, 48:7, 96:8, 192:9, 384:10, 768:11, 1536:12, 3072:13, 6144:14}[val]
 
 def to_imgkey(imc):
     return np.asarray(imc).tostring()
