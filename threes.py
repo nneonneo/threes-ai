@@ -48,6 +48,16 @@ def make_deck():
     random.shuffle(deck)
     return deck
 
+def do_move(m, move):
+    lines = get_lines(m, move)
+    folds = [find_fold(l) for l in lines]
+    changelines = []
+    for i in xrange(4):
+        if folds[i] >= 0:
+            do_fold(lines[i], folds[i])
+            changelines.append(lines[i])
+    return changelines
+
 def play_game():
     ''' Non-interactive play_game function. Yields (board, next_tile, valid_moves) tuples.
     Send your next move in via the generator .send.
@@ -81,15 +91,8 @@ def play_game():
         if not valid:
             break
 
-        folds = foldset[move]
-        lines = lineset[move]
-        changed = []
-        for i in xrange(4):
-            if folds[i] >= 0:
-                do_fold(lines[i], folds[i])
-                changed.append(i)
-        insertline = random.choice(changed)
-        lines[insertline][-1] = tile
+        changelines = do_move(m, move)
+        random.choice(changelines)[-1] = tile
 
 def play_game_interactive():
     game = play_game()
