@@ -44,9 +44,13 @@ def getmove(m1, m2):
         possible.append((move, diff[0]))
 
     if len(possible) == 0:
-        print "Warning: impossible situation"
+        print "Error: impossible situation"
     elif len(possible) > 1:
-        print "Warning: ambiguous result"
+        print "Warning: ambiguous result: possibilities:",
+        for m, t in possible:
+            print "%s,%d" % (movenames[m], t),
+        print
+        return possible[0]
     else:
         return possible[0]
 
