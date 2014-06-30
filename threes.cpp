@@ -5,9 +5,31 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
-#include <map>
-
 #include "threes.h"
+
+/*
+#include <map>
+typedef std::map<board_t, float> trans_table_t;
+*/
+#include <unordered_map>
+typedef std::unordered_map<board_t, float> trans_table_t;
+
+// Transpose rows/columns in a board:
+//   0123       048c
+//   4567  -->  159d
+//   89ab       26ae
+//   cdef       37bf
+static inline board_t transpose(board_t x)
+{
+	board_t a1 = x & 0xF0F00F0FF0F00F0FULL;
+	board_t a2 = x & 0x0000F0F00000F0F0ULL;
+	board_t a3 = x & 0x0F0F00000F0F0000ULL;
+	board_t a = a1 | (a2 << 12) | (a3 >> 12);
+	board_t b1 = a & 0xFF00FF0000FF00FFULL;
+	board_t b2 = a & 0x00FF00FF00000000ULL;
+	board_t b3 = a & 0x00000000FF00FF00ULL;
+	return b1 | (b2 >> 24) | (b3 << 24);
+}
 
 /* We can perform state lookups one row at a time by using arrays with 65536 entries. */
 
@@ -19,17 +41,72 @@ static board_t row_left_table[65536];
 static board_t row_right_table[65536];
 static board_t col_up_table[65536];
 static board_t col_down_table[65536];
+static float heur_score_table[65536];
+static float score_table[65536];
 
-void init_move_tables(void) {
-    unsigned row;
+// Heuristic scoring settings
+static const float SCORE_LOST_PENALTY = 30000.0f;
+static const float SCORE_MONOTONICITY_WEIGHT = 1.0f;
+static const float SCORE_MERGES_WEIGHT = 10.0f;
+static const float SCORE_EMPTY_WEIGHT = 10.0f;
 
-    memset(row_left_table, 0, sizeof(row_left_table));
-    memset(row_right_table, 0, sizeof(row_right_table));
-    memset(col_up_table, 0, sizeof(col_up_table));
-    memset(col_down_table, 0, sizeof(col_down_table));
+void init_tables(void) {
+    for(unsigned row = 0; row < 65536; row++) {
+        unsigned line[4] = {
+                (row >>  0) & 0xf,
+                (row >>  4) & 0xf,
+                (row >>  8) & 0xf,
+                (row >> 12) & 0xf
+        };
 
-    for(row = 0; row < 65536; row++) {
-        unsigned int line[4] = {row & 0xf, (row >> 4) & 0xf, (row >> 8) & 0xf, (row >> 12) & 0xf};
+        // Score
+        float score = 0.0f;
+        for (int i = 0; i < 4; ++i) {
+            int rank = line[i];
+            if (rank >= 3) {
+                score += powf(3, rank-2);
+            }
+        }
+        score_table[row] = score;
+
+        // Heuristic score
+        int empty = 0;
+        int merges = 0;
+
+        int prev = 0;
+        int counter = 0;
+        for (int i = 0; i < 4; ++i) {
+            int rank = line[i];
+            if (rank == 0) {
+                empty++;
+            } else {
+                if (prev == rank) {
+                    counter++;
+                } else if (counter > 0) {
+                    merges += 1 + counter;
+                    counter = 0;
+                }
+                prev = rank;
+            }
+        }
+        if (counter > 0) {
+            merges += 1 + counter;
+        }
+
+        int monotonicity_left = 0;
+        int monotonicity_right = 0;
+        for (int i = 1; i < 4; ++i) {
+            if (line[i-1] > line[i]) {
+                monotonicity_left += line[i-1] * line[i-1] * line[i-1] - line[i] * line[i] * line[i];
+            } else {
+                monotonicity_right += line[i] * line[i] * line[i] - line[i-1] * line[i-1] * line[i-1];
+            }
+        }
+
+        heur_score_table[row] = SCORE_EMPTY_WEIGHT * empty + SCORE_MERGES_WEIGHT * merges -
+            SCORE_MONOTONICITY_WEIGHT * std::min(monotonicity_left, monotonicity_right);
+
+        // Moves
         row_t result;
         int i, j;
 
@@ -166,6 +243,22 @@ static inline int get_max_rank(board_t board) {
     return maxrank;
 }
 
+static inline int count_distinct_tiles(board_t board) {
+    uint16_t seen = 0;
+    while(board) {
+        seen |= (1 << (board & 0xf));
+        board >>= 4;
+    }
+
+    int tiles = 0;
+    for(int i=1; i<16; i++) {
+        if(seen & (1 << i))
+            tiles++;
+    }
+
+    return tiles;
+}
+
 /* Place a new tile on the board. Assumes the board is empty at the target location. */
 static inline board_t insert_tile(int move, board_t board, int pos, int tile) {
     switch(move) {
@@ -184,18 +277,15 @@ static inline board_t insert_tile(int move, board_t board, int pos, int tile) {
 
 
 /* Optimizing the game */
-static float row_heur_score_table[65536];
-static float row_score_table[65536];
-
 struct eval_state {
-    std::map<board_t, float> trans_table; // transposition table, to cache previously-seen moves
-    float cprob_thresh;
+    trans_table_t trans_table; // transposition table, to cache previously-seen moves
     int maxdepth;
     int curdepth;
     int cachehits;
-    int moves_evaled;
+    unsigned long moves_evaled;
+    int depth_limit;
 
-    eval_state() : cprob_thresh(0), maxdepth(0), curdepth(0), cachehits(0), moves_evaled(0) {
+    eval_state() : maxdepth(0), curdepth(0), cachehits(0), moves_evaled(0), depth_limit(0) {
     }
 };
 
@@ -210,45 +300,23 @@ static float score_tilechoose_node(eval_state &state, board_t board, deck_t deck
 // score over all possible tile placements
 static float score_tileinsert_node(eval_state &state, board_t board, deck_t deck, float cprob, int move, int changed, int tile);
 
-void init_score_tables(void) {
-    unsigned row;
-
-    memset(row_heur_score_table, 0, sizeof(row_heur_score_table));
-    memset(row_score_table, 0, sizeof(row_score_table));
-
-    for(row = 0; row < 65536; row++) {
-        int i;
-        float heur_score = 0;
-        float score = 0;
-
-        for(i=0; i<4; i++) {
-            int rank = (row >> (4*i)) & 0xf;
-
-            if(rank == 0) {
-                heur_score += 10000;
-            } else if(rank >= 3) {
-                //heur_score += powf(3, rank-2);
-                score += powf(3, rank-2);
-            }
-        }
-        row_score_table[row] = score;
-        row_heur_score_table[row] = heur_score;
-    }
+static float score_helper(board_t board, const float* table) {
+    return table[(board >>  0) & ROW_MASK] +
+           table[(board >> 16) & ROW_MASK] +
+           table[(board >> 32) & ROW_MASK] +
+           table[(board >> 48) & ROW_MASK];
 }
 
-#define SCORE_BOARD(board,tbl) ((tbl)[(board) & ROW_MASK] + \
-    (tbl)[((board) >> 16) & ROW_MASK] + \
-    (tbl)[((board) >> 32) & ROW_MASK] + \
-    (tbl)[((board) >> 48) & ROW_MASK])
-
 static float score_heur_board(board_t board) {
-    return SCORE_BOARD(board, row_heur_score_table) + 100000;
+    return score_helper(          board , heur_score_table) +
+           score_helper(transpose(board), heur_score_table) +
+           SCORE_LOST_PENALTY;
 }
 
 static float score_board(board_t board) {
-    return SCORE_BOARD(board, row_score_table);
+    return score_helper(board, score_table);
 }
-    
+
 static float score_tileinsert_node(eval_state &state, board_t board, deck_t deck, float cprob, int move, int changed, int tile) {
     float res = 0;
     float factor = 1.0f / (changed >> 8);
@@ -304,38 +372,33 @@ static float score_tilechoose_node(eval_state &state, board_t board, deck_t deck
 /* Statistics and controls */
 // cprob: cumulative probability
 /* don't recurse into a node with a cprob less than this threshold */
-#define CPROB_THRESH_BASE (1e-3f)
-#define CACHE_DEPTH_LIMIT 4
+#define CPROB_THRESH_BASE (1e-4f)
+#define CACHE_DEPTH_LIMIT 6
 
 static float score_move_node(eval_state &state, board_t board, deck_t deck, float cprob) {
-    if(cprob < state.cprob_thresh) {
-        if(state.curdepth > state.maxdepth)
-            state.maxdepth = state.curdepth;
+    if(cprob < CPROB_THRESH_BASE || state.curdepth >= state.depth_limit) {
+        state.maxdepth = std::max(state.curdepth, state.maxdepth);
         return score_heur_board(board);
     }
 
     if(state.curdepth < CACHE_DEPTH_LIMIT) {
-        const auto &i = state.trans_table.find(board);
+        const trans_table_t::iterator &i = state.trans_table.find(board);
         if(i != state.trans_table.end()) {
             state.cachehits++;
             return i->second;
         }
     }
 
-    int move;
     float best = 0;
-
     state.curdepth++;
-    for(move=0; move<4; move++) {
+    for(int move=0; move<4; move++) {
         int changed;
         board_t newboard = execute_move(move, board, &changed);
         state.moves_evaled++;
         if(!changed)
             continue;
 
-        float res = score_tilechoose_node(state, newboard, deck, cprob, move, changed);
-        if(res > best)
-            best = res;
+        best = std::max(best, score_tilechoose_node(state, newboard, deck, cprob, move, changed));
     }
     state.curdepth--;
 
@@ -355,7 +418,6 @@ static float _score_toplevel_move(eval_state &state, board_t board, deck_t deck,
         return 0;
 
     deck = DECK_WITH_MAXVAL(deck, maxrank);
-    state.cprob_thresh = CPROB_THRESH_BASE / (maxrank - 2);
 
     if(tile == 1)
         return score_tileinsert_node(state, newboard, DECK_SUB_1(deck), 1.0f, move, changed, 1);
@@ -381,6 +443,7 @@ float score_toplevel_move(board_t board, deck_t deck, int tile, int move) {
     struct timeval start, finish;
     double elapsed;
     eval_state state;
+    state.depth_limit = std::max(3, count_distinct_tiles(board) - 2);
 
     gettimeofday(&start, NULL);
     res = _score_toplevel_move(state, board, deck, tile, move);
@@ -389,7 +452,7 @@ float score_toplevel_move(board_t board, deck_t deck, int tile, int move) {
     elapsed = (finish.tv_sec - start.tv_sec);
     elapsed += (finish.tv_usec - start.tv_usec) / 1000000.0;
 
-    printf("Move %d: result %f: eval'd %d moves (%d cache hits, %zd cache size) in %.2f seconds (maxdepth=%d)\n", move, res,
+    printf("Move %d: result %f: eval'd %lu moves (%d cache hits, %zd cache size) in %.2f seconds (maxdepth=%d)\n", move, res,
         state.moves_evaled, state.cachehits, state.trans_table.size(), elapsed, state.maxdepth);
 
     return res;
@@ -553,8 +616,7 @@ int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
 
-    init_move_tables();
-    init_score_tables();
+    init_tables();
 
     play_game(find_best_move);
     return 0;

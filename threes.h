@@ -62,8 +62,7 @@ typedef uint32_t deck_t;
 extern "C" {
 #endif
 
-void init_score_tables(void);
-void init_move_tables(void);
+void init_tables(void);
 
 typedef int (*get_move_func_t)(board_t, deck_t, int);
 float score_toplevel_move(board_t board, deck_t deck, int tile, int move);

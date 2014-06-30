@@ -2,8 +2,7 @@ import ctypes
 import numpy as np
 
 threes = ctypes.CDLL('bin/threes.dylib')
-threes.init_move_tables()
-threes.init_score_tables()
+threes.init_tables()
 
 threes.find_best_move.argtypes = [ctypes.c_uint64, ctypes.c_uint32, ctypes.c_int]
 threes.score_toplevel_move.argtypes = [ctypes.c_uint64, ctypes.c_uint32, ctypes.c_int, ctypes.c_int]
