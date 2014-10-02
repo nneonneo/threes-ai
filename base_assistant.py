@@ -3,6 +3,7 @@
 from threes import *
 from collections import Counter
 from threes_ai_c import find_best_move
+from deck_reconstruct import DeckReconstructor
 
 __author__ = 'Robert Xiao <nneonneo@gmail.com>'
 
@@ -59,11 +60,7 @@ def initial_deck():
 
 movenames = ['up', 'down', 'left', 'right']
 
-def _step(board, deck, newboard):
-    if deck is None:
-        deck = initial_deck() - Counter(newboard.flatten())
-        return deck
-
+def _step_from_start(board, deck, newboard):
     if all(v == 0 for v in deck.values()):
         deck = initial_deck()
     move, t = getmove(board, newboard)
@@ -77,12 +74,20 @@ def _step(board, deck, newboard):
 
     return deck
 
-def run_assistant(gen_board, make_move_func):
+def _step_reconstruct(board, deck, newboard):
+    move, t = getmove(board, newboard)
+    print "Previous move:", movenames[move]
+    if t <= 3:
+        deck.update(t)
+
+def run_assistant(gen_board, make_move_func, from_start=True):
     ''' Run the assistant.
     
     gen_board: A generator which returns (board, next_tile, skip_move) tuples.
         If skip_move is True, the assistant will not calculate or make a move.
     make_move_func: A function to call which will make the recommended move.
+    from_start: Are we starting from the first move?
+        If False, the deck will be estimated.
     '''
 
     board = None
@@ -94,7 +99,17 @@ def run_assistant(gen_board, make_move_func):
         print "Move number", moveno+1
         moveno += 1
 
-        deck = _step(board, deck, newboard)
+        if from_start:
+            if deck is None:
+                deck = initial_deck() - Counter(newboard.flatten())
+            else:
+                deck = _step(board, deck, newboard)
+        else:
+            if deck is None:
+                deck = DeckReconstructor(newboard)
+            else:
+                _step_reconstruct(board, deck, newboard)
+
         board = newboard.copy()
 
         print to_val(board)

@@ -81,6 +81,7 @@ def parse_args(argv):
     import argparse
     parser = argparse.ArgumentParser(description="Control Threes! running on an Android phone")
     parser.add_argument('--no-resume', action='store_false', dest='resume', default=True, help="Don't resume from previous data")
+    parser.add_argument('--from-start', action='store_true', default=False, help="Assume that the game starts from the initial state. May improve performance.")
     parser.add_argument('outdir', nargs='?', help="Output directory for screen captures")
 
     args = parser.parse_args(argv)
@@ -99,9 +100,9 @@ def main(argv):
             os.makedirs(args.outdir)
         except OSError:
             pass
-        run_assistant(assistant.gen_board_disk(args.outdir, args.resume), assistant.make_move)
+        run_assistant(assistant.gen_board_disk(args.outdir, args.resume), assistant.make_move, args.from_start)
     else:
-        run_assistant(assistant.gen_board_mem(), assistant.make_move)
+        run_assistant(assistant.gen_board_mem(), assistant.make_move, args.from_start)
 
 if __name__ == '__main__':
     import sys
