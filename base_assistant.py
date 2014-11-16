@@ -1,5 +1,6 @@
 ''' Base functions for move assistants. '''
 
+import time
 from threes import *
 from collections import Counter
 from threes_ai_c import find_best_move
@@ -95,6 +96,17 @@ def run_assistant(gen_board, make_move_func, from_start=True):
     moveno = 0
 
     for newboard, tile, skip_move in gen_board:
+        if tile == 0:
+            break # game over
+        if board is not None and (board == newboard).all():
+            print "Warning: previous move not made"
+            time.sleep(0.3)
+            move = find_best_move(board, deck, tile)
+            if move < 0:
+                break
+            make_move_func(movenames[move])
+            time.sleep(0.3)
+            continue
         print
         print "Move number", moveno+1
         moveno += 1
