@@ -77,17 +77,35 @@ class AndroidAssistant:
 
         time.sleep(sleeptime)
 
+    def restart(self):
+        ''' Restart from the "out of moves" screen '''
+        playback_gesture(self.shell, self.ident, 'shortright') # swipe to see your score
+        time.sleep(0.5)
+        playback_gesture(self.shell, self.ident, 'shortright') # skip the score counting
+        time.sleep(1)
+        playback_gesture(self.shell, self.ident, 'shortright') # swipe to save your score
+        time.sleep(1)
+        playback_gesture(self.shell, self.ident, 'shortleft') # swipe from score to menu
+        time.sleep(1)
+        playback_gesture(self.shell, self.ident, 'pressbutton') # press Main Menu button
+        time.sleep(1)
+        playback_gesture(self.shell, self.ident, 'pressbutton') # press Play Threes button
+        time.sleep(2.0)
+        self.last_board = None
+
 def parse_args(argv):
     import argparse
     parser = argparse.ArgumentParser(description="Control Threes! running on an Android phone")
     parser.add_argument('--no-resume', action='store_false', dest='resume', default=True, help="Don't resume from previous data")
     parser.add_argument('--from-start', action='store_true', default=False, help="Assume that the game starts from the initial state. May improve performance.")
-    parser.add_argument('outdir', nargs='?', help="Output directory for screen captures")
+    parser.add_argument('--repeat', action='store_true', default=False, help="Repeat games indefinitely")
+    parser.add_argument('outdir', nargs='?', help="Output directory for screen captures (interpreted as a prefix if repeat is on)")
 
     args = parser.parse_args(argv)
     return args
 
 def main(argv):
+    from itertools import count
     args = parse_args(argv)
 
     shell = ADBShell()
@@ -95,14 +113,23 @@ def main(argv):
 
     assistant = AndroidAssistant(shell, ident)
 
-    if args.outdir:
-        try:
-            os.makedirs(args.outdir)
-        except OSError:
-            pass
-        run_assistant(assistant.gen_board_disk(args.outdir, args.resume), assistant.make_move, args.from_start)
+    if args.repeat:
+        iterations = count(1)
     else:
-        run_assistant(assistant.gen_board_mem(), assistant.make_move, args.from_start)
+        iterations = ['']
+
+    for i,suffix in enumerate(iterations):
+        if i >= 1:
+            assistant.restart()
+        if args.outdir:
+            outdir = args.outdir + str(suffix)
+            try:
+                os.makedirs(outdir)
+            except OSError:
+                pass
+            run_assistant(assistant.gen_board_disk(outdir, args.resume), assistant.make_move, args.from_start)
+        else:
+            run_assistant(assistant.gen_board_mem(), assistant.make_move, args.from_start)
 
 if __name__ == '__main__':
     import sys
