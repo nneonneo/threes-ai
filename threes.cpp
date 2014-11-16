@@ -415,7 +415,7 @@ static float _score_toplevel_move(eval_state &state, board_t board, deck_t deck,
     board_t newboard = execute_move(move, board, &changed);
 
     if(!changed)
-        return 0;
+        return -1;
 
     deck = DECK_WITH_MAXVAL(deck, maxrank);
 
