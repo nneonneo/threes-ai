@@ -7,6 +7,7 @@ from adb_shell import ADBShell
 import time
 import os
 import re
+from cStringIO import StringIO
 
 from ocr import ocr
 from base_assistant import run_assistant, movenames
@@ -23,7 +24,6 @@ class AndroidAssistant:
         self.last_board = None
 
     def gen_board_mem(self):
-        from cStringIO import StringIO
         while True:
             sshot_data = self.shell.execute('screencap -p')
             sshot_file = StringIO(sshot_data)
@@ -47,13 +47,20 @@ class AndroidAssistant:
 
         while True:
             sshot_data = self.shell.execute('screencap -p')
+            sshot_file = StringIO(sshot_data)
+            board, tile = ocr(sshot_file)
+            if board is None:
+                # Wait a bit and retry
+                print "Retrying screenshot..."
+                time.sleep(5)
+                continue
+
             fn = fmt_sshot % curnum
             dfn = os.path.join(d, fn)
             curnum += 1
             with open(dfn, 'wb') as f:
                 f.write(sshot_data)
             print fn
-            board, tile = ocr(dfn)
             self.last_board = board
             yield board, tile, False
 

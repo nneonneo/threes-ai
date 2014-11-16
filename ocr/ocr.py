@@ -14,7 +14,7 @@ CONFIGS = {
     # sw,sh: screen width and height (set automatically)
 
     (640, 1136): dict(x0=92, y0=348,  w=96, h=80,  dx=120, dy=160,  tx=320, ty=146),    # Retina 4" iPhone/iPod
-    (1080, 1920): dict(x0=155, y0=518,  w=162, h=135,  dx=202.5, dy=270,  tx=540, ty=207),    # Nexus 5
+    (1080, 1920): dict(x0=155, y0=518,  w=162, h=135,  dx=202.5, dy=270,  tx=540, ty=222),    # Nexus 5
 }
 
 for w,h in CONFIGS:
@@ -112,7 +112,9 @@ def find_next_tile(cfg, im):
         (102, 204, 255): 1,
         (255, 102, 128): 2,
         (254, 255, 255): 3,
-        (0, 0, 0): 4}.get(px, 0)
+        (0, 0, 0): 4,
+        (193, 197, 203): -1, # lose
+    }.get(px, 0)
     if ret == 0:
         print "Warning: unknown next tile (px=%s)!" % (px,)
         im.show()
@@ -122,6 +124,10 @@ def ocr(fn):
     im = Image.open(fn)
     cfg = config_for_image(im)
 
+    tile = find_next_tile(cfg, im)
+    if tile == 0:
+        return None, tile
+
     out = np.zeros((4,4), dtype=int)
 
     for r in xrange(4):
@@ -129,7 +135,7 @@ def ocr(fn):
             imc = extract(cfg, im, r, c)
             out[r,c] = to_ind(classify(cfg, imc))
 
-    return out, find_next_tile(cfg, im)
+    return out, tile
 
 if __name__ == '__main__':
     import sys

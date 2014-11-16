@@ -96,7 +96,7 @@ def run_assistant(gen_board, make_move_func, from_start=True):
     moveno = 0
 
     for newboard, tile, skip_move in gen_board:
-        if tile == 0:
+        if tile == -1:
             break # game over
         if board is not None and (board == newboard).all():
             print "Warning: previous move not made"
