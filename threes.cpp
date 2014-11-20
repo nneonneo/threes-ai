@@ -37,21 +37,24 @@ static inline board_t transpose(board_t x)
  *
  * Thus, the value is 0 if there is no move, and otherwise equals a value that can easily be
  * xor'ed into the current board state to update the board. */
-static board_t row_left_table[65536];
-static board_t row_right_table[65536];
+static row_t row_left_table[65536];
+static row_t row_right_table[65536];
 static board_t col_up_table[65536];
 static board_t col_down_table[65536];
 static float heur_score_table[65536];
 static float score_table[65536];
 
 // Heuristic scoring settings
-static const float SCORE_LOST_PENALTY = 30000.0f;
-static const float SCORE_MONOTONICITY_WEIGHT = 1.0f;
-static const float SCORE_MERGES_WEIGHT = 10.0f;
-static const float SCORE_EMPTY_WEIGHT = 10.0f;
+static const float SCORE_LOST_PENALTY = 200000.0f;
+static const float SCORE_MONOTONICITY_POWER = 4.0f;
+static const float SCORE_MONOTONICITY_WEIGHT = 47.0f;
+static const float SCORE_SUM_POWER = 3.5f;
+static const float SCORE_SUM_WEIGHT = 11.0f;
+static const float SCORE_MERGES_WEIGHT = 700.0f;
+static const float SCORE_EMPTY_WEIGHT = 270.0f;
 
-void init_tables(void) {
-    for(unsigned row = 0; row < 65536; row++) {
+void init_tables() {
+    for(unsigned row = 0; row < 65536; ++row) {
         unsigned line[4] = {
                 (row >>  0) & 0xf,
                 (row >>  4) & 0xf,
@@ -69,7 +72,9 @@ void init_tables(void) {
         }
         score_table[row] = score;
 
+
         // Heuristic score
+        float sum = 0;
         int empty = 0;
         int merges = 0;
 
@@ -77,6 +82,7 @@ void init_tables(void) {
         int counter = 0;
         for (int i = 0; i < 4; ++i) {
             int rank = line[i];
+            sum += pow(rank, SCORE_SUM_POWER);
             if (rank == 0) {
                 empty++;
             } else {
@@ -93,22 +99,24 @@ void init_tables(void) {
             merges += 1 + counter;
         }
 
-        int monotonicity_left = 0;
-        int monotonicity_right = 0;
+        float monotonicity_left = 0;
+        float monotonicity_right = 0;
         for (int i = 1; i < 4; ++i) {
             if (line[i-1] > line[i]) {
-                monotonicity_left += line[i-1] * line[i-1] * line[i-1] - line[i] * line[i] * line[i];
+                monotonicity_left += pow(line[i-1], SCORE_MONOTONICITY_POWER) - pow(line[i], SCORE_MONOTONICITY_POWER);
             } else {
-                monotonicity_right += line[i] * line[i] * line[i] - line[i-1] * line[i-1] * line[i-1];
+                monotonicity_right += pow(line[i], SCORE_MONOTONICITY_POWER) - pow(line[i-1], SCORE_MONOTONICITY_POWER);
             }
         }
 
-        heur_score_table[row] = SCORE_EMPTY_WEIGHT * empty + SCORE_MERGES_WEIGHT * merges -
-            SCORE_MONOTONICITY_WEIGHT * std::min(monotonicity_left, monotonicity_right);
+        heur_score_table[row] = SCORE_LOST_PENALTY +
+            SCORE_EMPTY_WEIGHT * empty +
+            SCORE_MERGES_WEIGHT * merges -
+            SCORE_MONOTONICITY_WEIGHT * std::min(monotonicity_left, monotonicity_right) -
+            SCORE_SUM_WEIGHT * sum;
 
-        // Moves
-        row_t result;
-        int i, j;
+        // execute a move to the left
+        int i;
 
         for(i=0; i<3; i++) {
             if(line[i] == 0) {
@@ -120,8 +128,11 @@ void init_tables(void) {
             } else if(line[i] == 2 && line[i+1] == 1) {
                 line[i] = 3;
                 break;
-            } else if(line[i] == line[i+1] && line[i] >= 3 && line[i] < 15) {
-                line[i]++;
+            } else if(line[i] == line[i+1] && line[i] >= 3) {
+                if(line[i] != 15) {
+                    /* Pretend that 12288 + 12288 = 12288 */
+                    line[i]++;
+                }
                 break;
             }
         }
@@ -130,16 +141,21 @@ void init_tables(void) {
             continue;
 
         /* fold to the left */
-        for(j=i+1; j<3; j++)
+        for(int j=i+1; j<3; j++)
             line[j] = line[j+1];
         line[3] = 0;
 
-        result = (line[0]) | (line[1] << 4) | (line[2] << 8) | (line[3] << 12);
+        row_t result = (line[0] <<  0) |
+                       (line[1] <<  4) |
+                       (line[2] <<  8) |
+                       (line[3] << 12);
+        row_t rev_result = reverse_row(result);
+        unsigned rev_row = reverse_row(row);
 
-        row_left_table[row] = row ^ result;
-        row_right_table[reverse_row(row)] = reverse_row(row) ^ reverse_row(result);
-        col_up_table[row] = unpack_col(row) ^ unpack_col(result);
-        col_down_table[reverse_row(row)] = unpack_col(reverse_row(row)) ^ unpack_col(reverse_row(result));
+        row_left_table [    row] =                row  ^                result;
+        row_right_table[rev_row] =            rev_row  ^            rev_result;
+        col_up_table   [    row] = unpack_col(    row) ^ unpack_col(    result);
+        col_down_table [rev_row] = unpack_col(rev_row) ^ unpack_col(rev_result);
     }
 }
 
@@ -235,28 +251,29 @@ static inline board_t execute_move(int move, board_t board, int *changed) {
 
 static inline int get_max_rank(board_t board) {
     int maxrank = 0;
-    while(board) {
-        int k = board & 0xf;
-        if(k > maxrank) maxrank = k;
+    while (board) {
+        maxrank = std::max(maxrank, int(board & 0xf));
         board >>= 4;
     }
     return maxrank;
 }
 
 static inline int count_distinct_tiles(board_t board) {
-    uint16_t seen = 0;
-    while(board) {
-        seen |= (1 << (board & 0xf));
+    uint16_t bitset = 0;
+    while (board) {
+        bitset |= 1<<(board & 0xf);
         board >>= 4;
     }
 
-    int tiles = 0;
-    for(int i=1; i<16; i++) {
-        if(seen & (1 << i))
-            tiles++;
-    }
+    // Don't count empty tiles or "1","2" tiles.
+    bitset >>= 3;
 
-    return tiles;
+    int count = 0;
+    while (bitset) {
+        bitset &= bitset - 1;
+        count++;
+    }
+    return count;
 }
 
 /* Place a new tile on the board. Assumes the board is empty at the target location. */
@@ -275,8 +292,8 @@ static inline board_t insert_tile(int move, board_t board, int pos, int tile) {
     }
 }
 
-
 /* Optimizing the game */
+
 struct eval_state {
     trans_table_t trans_table; // transposition table, to cache previously-seen moves
     int maxdepth;
@@ -309,8 +326,7 @@ static float score_helper(board_t board, const float* table) {
 
 static float score_heur_board(board_t board) {
     return score_helper(          board , heur_score_table) +
-           score_helper(transpose(board), heur_score_table) +
-           SCORE_LOST_PENALTY;
+           score_helper(transpose(board), heur_score_table);
 }
 
 static float score_board(board_t board) {
@@ -371,9 +387,9 @@ static float score_tilechoose_node(eval_state &state, board_t board, deck_t deck
 
 /* Statistics and controls */
 // cprob: cumulative probability
-/* don't recurse into a node with a cprob less than this threshold */
-#define CPROB_THRESH_BASE (1e-4f)
-#define CACHE_DEPTH_LIMIT 6
+// don't recurse into a node with a cprob less than this threshold
+static const float CPROB_THRESH_BASE = 0.0001f;
+static const int CACHE_DEPTH_LIMIT  = 6;
 
 static float score_move_node(eval_state &state, board_t board, deck_t deck, float cprob) {
     if(cprob < CPROB_THRESH_BASE || state.curdepth >= state.depth_limit) {
@@ -389,16 +405,16 @@ static float score_move_node(eval_state &state, board_t board, deck_t deck, floa
         }
     }
 
-    float best = 0;
+    float best = 0.0f;
     state.curdepth++;
     for(int move=0; move<4; move++) {
         int changed;
         board_t newboard = execute_move(move, board, &changed);
         state.moves_evaled++;
-        if(!changed)
-            continue;
 
-        best = std::max(best, score_tilechoose_node(state, newboard, deck, cprob, move, changed));
+        if(changed) {
+            best = std::max(best, score_tilechoose_node(state, newboard, deck, cprob, move, changed));
+        }
     }
     state.curdepth--;
 
@@ -415,16 +431,17 @@ static float _score_toplevel_move(eval_state &state, board_t board, deck_t deck,
     board_t newboard = execute_move(move, board, &changed);
 
     if(!changed)
-        return -1;
+        return 0;
 
     deck = DECK_WITH_MAXVAL(deck, maxrank);
+    float result = 0;
 
     if(tile == 1)
-        return score_tileinsert_node(state, newboard, DECK_SUB_1(deck), 1.0f, move, changed, 1);
+        result = score_tileinsert_node(state, newboard, DECK_SUB_1(deck), 1.0f, move, changed, 1);
     else if(tile == 2)
-        return score_tileinsert_node(state, newboard, DECK_SUB_2(deck), 1.0f, move, changed, 2);
+        result = score_tileinsert_node(state, newboard, DECK_SUB_2(deck), 1.0f, move, changed, 2);
     else if(tile == 3)
-        return score_tileinsert_node(state, newboard, DECK_SUB_3(deck), 1.0f, move, changed, 3);
+        result = score_tileinsert_node(state, newboard, DECK_SUB_3(deck), 1.0f, move, changed, 3);
     else {
         int choices = maxrank - 6;
         float res = 0;
@@ -434,8 +451,9 @@ static float _score_toplevel_move(eval_state &state, board_t board, deck_t deck,
             res += score_tileinsert_node(state, newboard, deck, 1.0f, move, changed, card+4);
         }
 
-        return res / choices;
+        result = res / choices;
     }
+    return result + 1e-6;
 }
 
 float score_toplevel_move(board_t board, deck_t deck, int tile, int move) {
@@ -588,7 +606,7 @@ void play_game(get_move_func_t get_move) {
             tile = draw_deck(&deck);
         }
 
-        printf("\nMove #%d\n", ++moveno);
+        printf("\nMove #%d, current score=%.0f\n", ++moveno, score_board(board));
 
         move = get_move(board, olddeck, tile);
         if(move < 0)
@@ -612,12 +630,8 @@ void play_game(get_move_func_t get_move) {
     printf("\nGame over. Your score is %.0f. The highest rank you achieved was %d.\n", score_board(board), get_max_rank(board));
 }
 
-int main(int argc, char **argv) {
-    (void)argc;
-    (void)argv;
-
+int main() {
     init_tables();
-
     play_game(find_best_move);
     return 0;
 }
