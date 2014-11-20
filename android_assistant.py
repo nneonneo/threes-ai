@@ -86,16 +86,16 @@ class AndroidAssistant:
 
     def restart(self):
         ''' Restart from the "out of moves" screen '''
-        playback_gesture(self.shell, self.ident, 'shortright') # swipe to see your score
+        playback_gesture(self.shell, self.ident, 'right') # swipe to see your score
         time.sleep(0.5)
-        playback_gesture(self.shell, self.ident, 'shortright') # skip the score counting
-        time.sleep(1)
-        playback_gesture(self.shell, self.ident, 'shortright') # swipe to save your score
-        time.sleep(1)
-        playback_gesture(self.shell, self.ident, 'shortleft') # swipe from score to menu
-        time.sleep(1)
+        playback_gesture(self.shell, self.ident, 'left') # skip the score counting
+        time.sleep(2)
+        playback_gesture(self.shell, self.ident, 'right') # swipe to save your score
+        time.sleep(2)
+        playback_gesture(self.shell, self.ident, 'left') # swipe from score to menu
+        time.sleep(2)
         playback_gesture(self.shell, self.ident, 'pressbutton') # press Main Menu button
-        time.sleep(1)
+        time.sleep(2)
         playback_gesture(self.shell, self.ident, 'pressbutton') # press Play Threes button
         time.sleep(2.0)
         self.last_board = None

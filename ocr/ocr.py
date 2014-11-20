@@ -113,7 +113,7 @@ def find_next_tile(cfg, im):
         (255, 102, 128): 2,
         (254, 255, 255): 3,
         (0, 0, 0): 4,
-        (193, 197, 203): -1, # lose
+        (119, 126, 140): -1, # lose
     }.get(px, 0)
     if ret == 0:
         print "Warning: unknown next tile (px=%s)!" % (px,)
