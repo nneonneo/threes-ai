@@ -45,13 +45,26 @@ static float heur_score_table[65536];
 static float score_table[65536];
 
 // Heuristic scoring settings
-static const float SCORE_LOST_PENALTY = 200000.0f;
-static const float SCORE_MONOTONICITY_POWER = 4.0f;
-static const float SCORE_MONOTONICITY_WEIGHT = 47.0f;
-static const float SCORE_SUM_POWER = 3.5f;
-static const float SCORE_SUM_WEIGHT = 11.0f;
-static const float SCORE_MERGES_WEIGHT = 700.0f;
-static const float SCORE_EMPTY_WEIGHT = 270.0f;
+static float SCORE_LOST_PENALTY = 200000.0f;
+static float SCORE_MONOTONICITY_POWER = 4.0f;
+static float SCORE_MONOTONICITY_WEIGHT = 47.0f;
+static float SCORE_SUM_POWER = 3.5f;
+static float SCORE_SUM_WEIGHT = 11.0f;
+static float SCORE_MERGES_WEIGHT = 700.0f;
+static float SCORE_EMPTY_WEIGHT = 270.0f;
+
+void set_heurweights(float *f, int flen) {
+    if(flen != 6) {
+        fprintf(stderr, "Incorrect number of arguments to set_heurweights: got %d\n", flen);
+        exit(-1);
+    }
+    SCORE_MONOTONICITY_POWER = f[0];
+    SCORE_MONOTONICITY_WEIGHT = f[1];
+    SCORE_SUM_POWER = f[2];
+    SCORE_SUM_WEIGHT = f[3];
+    SCORE_MERGES_WEIGHT = f[4];
+    SCORE_EMPTY_WEIGHT = f[5];
+}
 
 void init_tables() {
     for(unsigned row = 0; row < 65536; ++row) {
@@ -470,8 +483,8 @@ float score_toplevel_move(board_t board, deck_t deck, int tile, int move) {
     elapsed = (finish.tv_sec - start.tv_sec);
     elapsed += (finish.tv_usec - start.tv_usec) / 1000000.0;
 
-    printf("Move %d: result %f: eval'd %lu moves (%d cache hits, %zd cache size) in %.2f seconds (maxdepth=%d)\n", move, res,
-        state.moves_evaled, state.cachehits, state.trans_table.size(), elapsed, state.maxdepth);
+//     printf("Move %d: result %f: eval'd %lu moves (%d cache hits, %zd cache size) in %.2f seconds (maxdepth=%d)\n", move, res,
+//         state.moves_evaled, state.cachehits, state.trans_table.size(), elapsed, state.maxdepth);
 
     return res;
 }

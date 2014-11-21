@@ -62,6 +62,8 @@ typedef uint32_t deck_t;
 extern "C" {
 #endif
 
+void set_heurweights(float *f, int flen);
+
 void init_tables(void);
 
 typedef int (*get_move_func_t)(board_t, deck_t, int);

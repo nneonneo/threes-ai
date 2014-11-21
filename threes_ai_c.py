@@ -1,12 +1,14 @@
 import ctypes
 import numpy as np
+import os
 
-threes = ctypes.CDLL('bin/threes.dylib')
+threes = ctypes.CDLL(os.path.join(os.path.dirname(__file__), 'bin', 'threes.dylib'))
 threes.init_tables()
 
 threes.find_best_move.argtypes = [ctypes.c_uint64, ctypes.c_uint32, ctypes.c_int]
 threes.score_toplevel_move.argtypes = [ctypes.c_uint64, ctypes.c_uint32, ctypes.c_int, ctypes.c_int]
 threes.score_toplevel_move.restype = ctypes.c_float
+threes.set_heurweights.argtypes = [ctypes.POINTER(ctypes.c_float), ctypes.c_int]
 
 MULTITHREAD = True
 
@@ -38,6 +40,11 @@ else:
 
         return threes.find_best_move(board, deck, tile)
 
+def set_heurweights(*args):
+    f = (ctypes.c_float * len(args))(*args)
+    threes.set_heurweights(f, len(args))
+    threes.init_tables()
+
 def play_with_search():
     from threes import play_game, to_val, to_score
     from collections import Counter
@@ -47,25 +54,29 @@ def play_with_search():
     game = play_game()
     move = None
 
+    moveno = 0
     while True:
         m, tile, valid = game.send(move)
-        print to_val(m)
+        #print to_val(m)
         if deck is None:
             deck = initial_deck.copy() - Counter(m.flatten())
 
         if not valid:
             print "Game over."
             print "Your score is", to_score(m).sum()
-            break
+            return to_score(m).sum()
 
+        '''
         if tile > 3:
             print 'next tile: 6+'
             tile = 4
         else:
             print 'next tile:', tile
+        '''
 
         move = find_best_move(m, deck, tile)
-        print 'executing move:', move
+        moveno += 1
+        print "Move %d: %s" % (moveno, ['up', 'down', 'left', 'right'][move])
 
         if tile <= 3:
             deck[tile] -= 1
