@@ -10,7 +10,14 @@ import numpy as np
 # static float SCORE_EMPTY_WEIGHT = 270.0f;
 
 # weights from the 2048 AI
-x0 = np.asarray((4.0, 47.0, 3.5, 11.0, 700.0, 270.0))
+#x0 = np.asarray((4.0, 47.0, 3.5, 11.0, 700.0, 270.0))
+#sigma0 = 1.0
+
+# weights found by first-shot CMA-ES optimization
+x0_scaled = np.asarray((2.91095798048, 1.97322364298, 1.48440229638, 1.09747286946, 2.9608468539, 2.12275763339))
+sigma0 = 0.711489393676
+
+# scale to convert normalized CMA-ES values into heuristic weights
 scale = np.asarray((1.0, 25.0, 1.0, 50.0, 200.0, 200.0))
 
 def objective(x):
@@ -22,4 +29,4 @@ def objective(x):
         result += threes_ai_c.play_with_search()
     return -result
 
-cma.fmin(objective, x0 / scale, 1.0)
+cma.fmin(objective, x0_scaled, sigma0)
