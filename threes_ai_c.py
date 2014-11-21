@@ -1,6 +1,7 @@
 import ctypes
 import numpy as np
 import os
+import sys
 
 threes = ctypes.CDLL(os.path.join(os.path.dirname(__file__), 'bin', 'threes.dylib'))
 threes.init_tables()
@@ -49,6 +50,12 @@ def play_with_search():
     from threes import play_game, to_val, to_score
     from collections import Counter
 
+    import random
+    import time
+    seed = hash(str(time.time()))
+    print "seed=%d" % seed
+    random.seed(seed)
+
     initial_deck = Counter([1,2,3]*4)
     deck = None
     game = play_game()
@@ -62,9 +69,7 @@ def play_with_search():
             deck = initial_deck.copy() - Counter(m.flatten())
 
         if not valid:
-            print "Game over."
-            print "Your score is", to_score(m).sum()
-            return to_score(m).sum()
+            break
 
         '''
         if tile > 3:
@@ -76,12 +81,19 @@ def play_with_search():
 
         move = find_best_move(m, deck, tile)
         moveno += 1
-        print "Move %d: %s" % (moveno, ['up', 'down', 'left', 'right'][move])
+        #print "Move %d: %s" % (moveno, ['up', 'down', 'left', 'right'][move])
+        sys.stdout.write('UDLR'[move])
+        sys.stdout.flush()
 
         if tile <= 3:
             deck[tile] -= 1
         if all(deck[i] == 0 for i in (1,2,3)):
             deck = initial_deck.copy()
+
+    print
+    print "Game over."
+    print "Your score is", to_score(m).sum()
+    return to_score(m).sum()
 
 if __name__ == '__main__':
     play_with_search()
