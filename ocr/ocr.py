@@ -29,12 +29,13 @@ def to_imgkey(imc):
     return np.asarray(imc).tostring()
 
 class ExemplarMatcher:
-    def __init__(self, cfg, tag):
+    def __init__(self, cfg, tag, thresh=500000):
         self.cfg = cfg
         self.tag = tag
         self.loaded = False
         self.exemplars = {}
         self.lastid = {}
+        self.guess_thresh = thresh
         try:
             os.makedirs(self.exemplar_dir)
         except EnvironmentError:
@@ -58,12 +59,12 @@ class ExemplarMatcher:
             self.lastid[val] = max(self.lastid.get(val, 0), ind)
         self.loaded = True
 
-    def guess_classify(self, imc, thresh=500000):
+    def guess_classify(self, imc):
         possible = set()
         imcarr = np.asarray(imc).astype(float)
         for val, ind, im in self.get_exemplars():
             err = np.asarray(im).astype(float) - imcarr
-            if 0 < np.abs(err).sum() < thresh:
+            if 0 < np.abs(err).sum() < self.guess_thresh:
                 possible.add(val)
         if len(possible) == 1:
             return possible.pop()
@@ -96,8 +97,8 @@ class ExemplarMatcher:
 for (w,h),cfg in CONFIGS.iteritems():
     cfg.sw = w
     cfg.sh = h
-    cfg.next_matcher = ExemplarMatcher(cfg, 'next')
-    cfg.tile_matcher = ExemplarMatcher(cfg, 'tile')
+    cfg.next_matcher = ExemplarMatcher(cfg, 'next', 50000)
+    cfg.tile_matcher = ExemplarMatcher(cfg, 'tile', 500000)
 
 def extract_tile(cfg, im, r, c):
     x = cfg.x0 + c*cfg.dx
@@ -131,6 +132,8 @@ def ocr(fn):
 
     imc = extract_next(cfg, im)
     tileset = cfg.next_matcher.classify(imc)
+    if tileset == 'gameover':
+        return None, None
     tileset = [to_ind(int(t)) for t in tileset.split(',')]
     out = np.zeros((4,4), dtype=int)
 
