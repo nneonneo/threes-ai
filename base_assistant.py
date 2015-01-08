@@ -65,7 +65,7 @@ def _step_from_start(board, deck, newboard):
     if all(v == 0 for v in deck.values()):
         deck = initial_deck()
     move, t = getmove(board, newboard)
-    print "Previous move:", movenames[move]
+    print "Previous move:", movenames[move], "; tile:", t
     if t <= 3:
         if deck[t] == 0:
             raise Exception("Deck desynchronization detected!")
@@ -77,7 +77,7 @@ def _step_from_start(board, deck, newboard):
 
 def _step_reconstruct(board, deck, newboard):
     move, t = getmove(board, newboard)
-    print "Previous move:", movenames[move]
+    print "Previous move:", movenames[move], "; tile:", t
     if t <= 3:
         deck.update(t)
 
@@ -95,13 +95,13 @@ def run_assistant(gen_board, make_move_func, from_start=True):
     deck = None
     moveno = 0
 
-    for newboard, tile, skip_move in gen_board:
-        if tile == -1:
+    for newboard, tileset, skip_move in gen_board:
+        if not tileset:
             break # game over
         if board is not None and (board == newboard).all():
             print "Warning: previous move not made"
             time.sleep(0.3)
-            move = find_best_move(board, deck, tile)
+            move = find_best_move(board, deck, tileset)
             if move < 0:
                 break
             make_move_func(movenames[move])
@@ -126,10 +126,10 @@ def run_assistant(gen_board, make_move_func, from_start=True):
 
         print to_val(board)
         print "Current score:", to_score(board).sum()
-        print "Next tile: %d (deck=1:%d, 2:%d, 3:%d)" % (tile, deck[1], deck[2], deck[3])
+        print "Next tile: %s (deck=1:%d, 2:%d, 3:%d)" % (tileset, deck[1], deck[2], deck[3])
 
         if not skip_move:
-            move = find_best_move(board, deck, tile)
+            move = find_best_move(board, deck, tileset)
             if move < 0:
                 break
             make_move_func(movenames[move])
@@ -142,11 +142,11 @@ if __name__ == '__main__':
 
     def gen_board():
         while True:
-            m, tile, valid = game.send(move)
+            m, tileset, valid = game.send(move)
             if not valid:
                 print "Game over."
                 break
-            yield m, tile, False
+            yield m, tileset, False
 
     def make_move(mv):
         global move

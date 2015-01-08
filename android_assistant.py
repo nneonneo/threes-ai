@@ -27,9 +27,9 @@ class AndroidAssistant:
         while True:
             sshot_data = self.shell.execute('screencap -p')
             sshot_file = StringIO(sshot_data)
-            board, tile = ocr(sshot_file)
+            board, tileset = ocr(sshot_file)
             self.last_board = board
-            yield board, tile, False
+            yield board, tileset, False
 
     def gen_board_disk(self, d, resume=False):
         curnum = 0
@@ -39,16 +39,16 @@ class AndroidAssistant:
                 last = imglist[-1]
                 for fn in imglist:
                     print fn
-                    board, tile = ocr(os.path.join(d, fn))
+                    board, tileset = ocr(os.path.join(d, fn))
                     skip = (fn != last)
                     self.last_board = board
-                    yield board, tile, skip
+                    yield board, tileset, skip
                 curnum = int(re.match(re_sshot, last).group(1), 10)+1
 
         while True:
             sshot_data = self.shell.execute('screencap -p')
             sshot_file = StringIO(sshot_data)
-            board, tile = ocr(sshot_file)
+            board, tileset = ocr(sshot_file)
             if board is None:
                 # Wait a bit and retry
                 print "Retrying screenshot..."
@@ -62,7 +62,7 @@ class AndroidAssistant:
                 f.write(sshot_data)
             print fn
             self.last_board = board
-            yield board, tile, False
+            yield board, tileset, False
 
     def make_move(self, move):
         playback_gesture(self.shell, self.ident, move)
@@ -74,7 +74,7 @@ class AndroidAssistant:
             top = board.max()
             if sorted(self.last_board.flatten()) == sorted(board.flatten()):
                 # No new tiles at all: no flipping or jumping
-                sleeptime = 0.3
+                sleeptime = 0.5
             elif top <= 3 or list(self.last_board.flatten()).count(top) == list(board.flatten()).count(top):
                 # No new high tile created, so no jumping will occur.
                 sleeptime = 0.5

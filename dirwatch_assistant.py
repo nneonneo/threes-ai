@@ -24,13 +24,13 @@ def gen_board(d, startpoint=None):
             if fn >= startpoint and not fn.startswith('.'):
                 print fn
                 fn = os.path.join(d, fn)
-                board, tile = ocr(fn)
-                yield board, tile, True
+                board, tileset = ocr(fn)
+                yield board, tileset, True
 
     for fn in watchdir(d):
-        board, tile = ocr(fn)
+        board, tileset = ocr(fn)
         print os.path.basename(fn)
-        yield board, tile, False
+        yield board, tileset, False
 
 def make_move(move):
     print "Recommended move:", move

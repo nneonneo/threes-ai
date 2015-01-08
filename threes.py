@@ -5,9 +5,11 @@ import numpy as np
 __author__ = 'Robert Xiao <nneonneo@gmail.com>'
 
 def to_val(x):
+    x = np.asarray(x)
     return np.where(x < 3, x, 3*2**(x-3))
 
 def to_score(x):
+    x = np.asarray(x)
     return np.where(x < 3, 0, 3**(x-2))
 
 def find_fold(line):
@@ -77,29 +79,33 @@ def play_game():
         foldset = [[find_fold(l) for l in lineset[i]] for i in xrange(4)]
         valid = [i for i in xrange(4) if any(f >= 0 for f in foldset[i])]
 
-        # TODO: check that this probability is correct
+        # TODO: Update random tile generation to account for new pick-three implementation
         maxval = m.max()
         if maxval >= 7 and random.random() < 1/24.:
-            tile = random.choice(xrange(4, maxval-2))
+            if maxval <= 9:
+                tileset = range(4, maxval-2)
+            else:
+                top = random.choice(xrange(6, maxval-2))
+                tileset = range(top-2, top+1)
         else:
             if not deck:
                 deck = make_deck()
-            tile = deck.pop()
+            tileset = [deck.pop()]
 
-        move = yield m, tile, valid
+        move = yield m, tileset, valid
 
         if not valid:
             break
 
         changelines = do_move(m, move)
-        random.choice(changelines)[-1] = tile
+        random.choice(changelines)[-1] = random.choice(tileset)
 
 def play_game_interactive():
     game = play_game()
     move = None
 
     while True:
-        m, tile, valid = game.send(move)
+        m, tileset, valid = game.send(move)
         print to_val(m)
 
         if not valid:
@@ -107,10 +113,7 @@ def play_game_interactive():
             print "Your score is", to_score(m).sum()
             break
 
-        if tile > 3:
-            print 'next tile: 6+'
-        else:
-            print 'next tile:', tile
+        print 'next tile:', list(to_val(tileset))
 
         movelist = ''.join('UDLR'[i] for i in valid)
         while True:

@@ -13,7 +13,7 @@ def replay(seed, moveseq):
     moveseq = [None] + ['UDLR'.find(x) for x in moveseq]
 
     for moveno, move in enumerate(moveseq):
-        m, tile, valid = game.send(move)
+        m, tileset, valid = game.send(move)
         print to_val(m)
         if deck is None:
             deck = initial_deck.copy() - Counter(m.flatten())
@@ -22,14 +22,10 @@ def replay(seed, moveseq):
             print "Game over."
             break
 
-        if tile > 3:
-            print 'next tile: 6+'
-            tile = 4
-        else:
-            print 'next tile:', tile
+        print 'next tile:', list(to_val(tileset))
 
-        if tile <= 3:
-            deck[tile] -= 1
+        if tileset[0] <= 3:
+            deck[tileset[0]] -= 1
         if all(deck[i] == 0 for i in (1,2,3)):
             deck = initial_deck.copy()
 

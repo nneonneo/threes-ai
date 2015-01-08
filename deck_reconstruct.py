@@ -61,8 +61,8 @@ if __name__ == '__main__':
     imglist = sorted([fn for fn in os.listdir(dirname) if fn >= startfn])
     for fn in imglist:
         print fn
-        board, tile = ocr(os.path.join(dirname, fn))
+        board, tileset = ocr(os.path.join(dirname, fn))
         if deck is None:
             deck = DeckReconstructor(board)
-        deck.update(tile)
+        deck.update(tileset[0])
         print deck

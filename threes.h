@@ -41,6 +41,10 @@ static inline row_t reverse_row(row_t row) {
 
 /* The tile deck */
 typedef uint32_t deck_t;
+/* Candidate tileset */
+typedef uint16_t tileset_t;
+
+#define FOREACH_TILE(t,tileset) for(tileset_t _tmp = (tileset); t=__builtin_ctz(_tmp), _tmp != 0; _tmp &= _tmp-1)
 
 #define DECK_SUB_1(deck) ((deck)-1)
 #define DECK_SUB_2(deck) ((deck)-(1<<8))
@@ -66,10 +70,10 @@ void set_heurweights(float *f, int flen);
 
 void init_tables(void);
 
-typedef int (*get_move_func_t)(board_t, deck_t, int);
-float score_toplevel_move(board_t board, deck_t deck, int tile, int move);
-int find_best_move(board_t board, deck_t deck, int tile);
-int ask_for_move(board_t board, deck_t deck, int tile);
+typedef int (*get_move_func_t)(board_t, deck_t, tileset_t);
+float score_toplevel_move(board_t board, deck_t deck, tileset_t tileset, int move);
+int find_best_move(board_t board, deck_t deck, tileset_t tileset);
+int ask_for_move(board_t board, deck_t deck, tileset_t tileset);
 void play_game(get_move_func_t get_move);
 
 #ifdef __cplusplus

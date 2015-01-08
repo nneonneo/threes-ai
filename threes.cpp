@@ -438,7 +438,7 @@ static float score_move_node(eval_state &state, board_t board, deck_t deck, floa
     return best;
 }
 
-static float _score_toplevel_move(eval_state &state, board_t board, deck_t deck, int tile, int move) {
+static float _score_toplevel_move(eval_state &state, board_t board, deck_t deck, tileset_t tileset, int move) {
     int changed;
     int maxrank = get_max_rank(board);
     board_t newboard = execute_move(move, board, &changed);
@@ -449,27 +449,24 @@ static float _score_toplevel_move(eval_state &state, board_t board, deck_t deck,
     deck = DECK_WITH_MAXVAL(deck, maxrank);
     float result = 0;
 
-    if(tile == 1)
-        result = score_tileinsert_node(state, newboard, DECK_SUB_1(deck), 1.0f, move, changed, 1);
-    else if(tile == 2)
-        result = score_tileinsert_node(state, newboard, DECK_SUB_2(deck), 1.0f, move, changed, 2);
-    else if(tile == 3)
-        result = score_tileinsert_node(state, newboard, DECK_SUB_3(deck), 1.0f, move, changed, 3);
-    else {
-        int choices = maxrank - 6;
-        float res = 0;
-        int card;
+    int tile;
+    int choices = 0;
+    FOREACH_TILE(tile, tileset) {
+        if(tile == 1)
+            result += score_tileinsert_node(state, newboard, DECK_SUB_1(deck), 1.0f, move, changed, tile);
+        else if(tile == 2)
+            result += score_tileinsert_node(state, newboard, DECK_SUB_2(deck), 1.0f, move, changed, tile);
+        else if(tile == 3)
+            result += score_tileinsert_node(state, newboard, DECK_SUB_3(deck), 1.0f, move, changed, tile);
+        else
+            result += score_tileinsert_node(state, newboard, deck, 1.0f, move, changed, tile);
 
-        for(card=0; card<choices; card++) {
-            res += score_tileinsert_node(state, newboard, deck, 1.0f, move, changed, card+4);
-        }
-
-        result = res / choices;
+        choices += 1;
     }
-    return result + 1e-6;
+    return result / choices + 1e-6;
 }
 
-float score_toplevel_move(board_t board, deck_t deck, int tile, int move) {
+float score_toplevel_move(board_t board, deck_t deck, tileset_t tileset, int move) {
     float res;
     struct timeval start, finish;
     double elapsed;
@@ -477,7 +474,7 @@ float score_toplevel_move(board_t board, deck_t deck, int tile, int move) {
     state.depth_limit = std::max(3, count_distinct_tiles(board) - 2);
 
     gettimeofday(&start, NULL);
-    res = _score_toplevel_move(state, board, deck, tile, move);
+    res = _score_toplevel_move(state, board, deck, tileset, move);
     gettimeofday(&finish, NULL);
 
     elapsed = (finish.tv_sec - start.tv_sec);
@@ -493,17 +490,21 @@ float score_toplevel_move(board_t board, deck_t deck, int tile, int move) {
  * 
  * Note: the deck must represent the deck BEFORE the given tile was drawn.
  * This enables correct behaviour for 3+ tiles. */
-int find_best_move(board_t board, deck_t deck, int tile) {
+int find_best_move(board_t board, deck_t deck, tileset_t tileset) {
     int move;
     float best = 0;
     int bestmove = -1;
 
     printf("%s\n", BOARDSTR(board, '\n'));
     printf("Current scores: heur %.0f, actual %.0f\n", score_heur_board(board), score_board(board));
-    printf("Next tile: %d (deck=%08x)\n", tile, deck);
+    printf("Next tile:");
+    int t;
+    FOREACH_TILE(t, tileset)
+        printf(" %x", t);
+    printf(" (deck=%08x)\n", deck);
 
     for(move=0; move<4; move++) {
-        float res = score_toplevel_move(board, deck, tile, move);
+        float res = score_toplevel_move(board, deck, tileset, move);
 
         if(res > best) {
             best = res;
@@ -514,7 +515,7 @@ int find_best_move(board_t board, deck_t deck, int tile) {
     return bestmove;
 }
 
-int ask_for_move(board_t board, deck_t deck, int tile) {
+int ask_for_move(board_t board, deck_t deck, tileset_t tileset) {
     int move;
     char validstr[5];
     char *validpos = validstr;
@@ -534,11 +535,11 @@ int ask_for_move(board_t board, deck_t deck, int tile) {
     if(validpos == validstr)
         return -1;
 
-    if(tile >= 3) {
-        printf("Next tile: 3+\n");
-    } else {
-        printf("Next tile: %d\n", tile);
-    }
+    printf("Next tile:");
+    int t;
+    FOREACH_TILE(t, tileset)
+        printf(" %x", t);
+    printf("\n");
 
     while(1) {
         char movestr[64];
@@ -597,6 +598,21 @@ static board_t initial_board(deck_t *deck) {
     return board;
 }
 
+static int random_tile(tileset_t choices) {
+    int count = 0;
+    int t;
+    FOREACH_TILE(t, choices)
+        count++;
+
+    int r = UNIF_RANDOM(count);
+    FOREACH_TILE(t, choices) {
+        if(r == 0)
+            break;
+        r--;
+    }
+    return t;
+}
+
 void play_game(get_move_func_t get_move) {
     deck_t deck = INITIAL_DECK;
     board_t board = initial_board(&deck);
@@ -607,21 +623,30 @@ void play_game(get_move_func_t get_move) {
         int i;
         int move;
         int tile;
+        tileset_t tileset;
         int changed;
         int maxrank = get_max_rank(board);
 
         if(!deck)
             olddeck = deck = INITIAL_DECK;
 
+        /* TODO: find out if this is actually how the random high tiles are drawn */
         if(maxrank >= 7 && UNIF_RANDOM(HIGH_CARD_FREQ) == 0) {
-            tile = UNIF_RANDOM(maxrank-6) + 4;
+            if(maxrank == 7) {
+                tileset = 1<<4;
+            } else if(maxrank == 8) {
+                tileset = 3<<4;
+            } else {
+                tileset = 7<<(UNIF_RANDOM(maxrank-8)+4);
+            }
         } else {
-            tile = draw_deck(&deck);
+            tileset = 1<<draw_deck(&deck);
         }
+        tile = random_tile(tileset);
 
         printf("\nMove #%d, current score=%.0f\n", ++moveno, score_board(board));
 
-        move = get_move(board, olddeck, tile);
+        move = get_move(board, olddeck, tileset);
         if(move < 0)
             break;
 

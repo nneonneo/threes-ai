@@ -2,24 +2,25 @@ import PIL.Image as Image
 import numpy as np
 import os
 import re
+import glob
 
 DNAME = os.path.dirname(__file__)
+
+class Namespace(object):
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
 CONFIGS = {
     # (screen_width, screen_height): settings dictionary
     # x0,y0: top left corner of the first tile
     # w,h: size of the tile sample
     # dx,dy: spacing between adjacent tiles
-    # tx,ty: next-tile sample point
+    # tx,ty,tw,th: next-tile sample rectangle
     # sw,sh: screen width and height (set automatically)
 
-    (640, 1136): dict(x0=92, y0=348,  w=96, h=80,  dx=120, dy=160,  tx=320, ty=146),    # Retina 4" iPhone/iPod
-    (1080, 1920): dict(x0=155, y0=518,  w=162, h=135,  dx=202.5, dy=270,  tx=540, ty=222),    # Nexus 5
+#    (640, 1136): Namespace(x0=92, y0=348,  w=96, h=80,  dx=120, dy=160,  tx=320, ty=146),    # Retina 4" iPhone/iPod # NEEDS tw,th
+    (1080, 1920): Namespace(x0=141, y0=577,  w=144, h=112,  dx=219, dy=292,  tx=310, ty=128, tw=460, th=188),    # Nexus 5
 }
-
-for w,h in CONFIGS:
-    CONFIGS[w,h]['sw'] = w
-    CONFIGS[w,h]['sh'] = h
 
 def to_ind(val):
     return {0:0, 1:1, 2:2, 3:3, 6:4, 12:5, 24:6, 48:7, 96:8, 192:9, 384:10, 768:11, 1536:12, 3072:13, 6144:14}[val]
@@ -27,27 +28,85 @@ def to_ind(val):
 def to_imgkey(imc):
     return np.asarray(imc).tostring()
 
-def get_exemplar_dir(cfg):
-    return os.path.join(DNAME, 'exemplars', '%dx%d' % (cfg['sw'], cfg['sh']))
+class ExemplarMatcher:
+    def __init__(self, cfg, tag):
+        self.cfg = cfg
+        self.tag = tag
+        self.loaded = False
+        self.exemplars = {}
+        self.lastid = {}
+        try:
+            os.makedirs(self.exemplar_dir)
+        except EnvironmentError:
+            pass
 
-def get_exemplars(cfg):
-    import glob
-    for fn in glob.glob(os.path.join(get_exemplar_dir(cfg), '*.png')):
-        val = re.findall(r'.*/(\d+).*\.png', fn)[0]
-        yield int(val), Image.open(fn)
+    @property
+    def exemplar_dir(self):
+        return os.path.join(DNAME, 'exemplars', '%dx%d' % (self.cfg.sw, self.cfg.sh), self.tag)
 
-def load_exemplars(cfg):
-    data = {}
-    for val, im in get_exemplars(cfg):
-        data[to_imgkey(im)] = val
-    cfg['exemplars'] = data
-    return data
+    def get_exemplars(self):
+        d = self.exemplar_dir
+        for fn in os.listdir(d):
+            m = re.match(r'^(.+)\.(\d+)\.png$', fn)
+            if m:
+                yield m.group(1), int(m.group(2)), Image.open(os.path.join(d, fn))
 
-def extract(cfg, im, r, c):
-    x = cfg['x0'] + c*cfg['dx']
-    y = cfg['y0'] + r*cfg['dy']
+    def load(self):
+        self.exemplars = {}
+        for val, ind, im in self.get_exemplars():
+            self.exemplars[to_imgkey(im)] = val
+            self.lastid[val] = max(self.lastid.get(val, 0), ind)
+        self.loaded = True
 
-    return im.crop((int(x), int(y), int(x+cfg['w']), int(y+cfg['h'])))
+    def guess_classify(self, imc, thresh=1e6):
+        possible = set()
+        imcarr = np.asarray(imc).astype(float)
+        for val, ind, im in self.get_exemplars():
+            err = np.asarray(im).astype(float) - imcarr
+            if 0 < np.abs(err).sum() < thresh:
+                possible.add(val)
+        if len(possible) == 1:
+            return possible.pop()
+        elif len(possible) > 1:
+            print "Warning: multiple matches %s; guesser may not be accurate!" % possible
+        return None
+
+    def classify(self, imc):
+        if not self.loaded:
+            self.load()
+
+        key = to_imgkey(imc)
+        val = self.exemplars.get(key, None)
+        if val is not None:
+            return val
+
+        val = self.guess_classify(imc)
+        if val is not None:
+            print "Unrecognized %s automatically classified as %s" % (self.tag, val)
+        else:
+            imc.show()
+            val = raw_input("\aUnrecognized %s! Recognize it and type in the value: " % self.tag)
+
+        nid = self.lastid.get(val, 0) + 1
+        imc.save(os.path.join(self.exemplar_dir, '%s.%d.png' % (val, nid)))
+        self.exemplars[to_imgkey(imc)] = val
+        self.lastid[val] = nid
+        return val
+
+for (w,h),cfg in CONFIGS.iteritems():
+    cfg.sw = w
+    cfg.sh = h
+    cfg.next_matcher = ExemplarMatcher(cfg, 'next')
+    cfg.tile_matcher = ExemplarMatcher(cfg, 'tile')
+
+def extract_tile(cfg, im, r, c):
+    x = cfg.x0 + c*cfg.dx
+    y = cfg.y0 + r*cfg.dy
+
+    return im.crop((int(x), int(y), int(x+cfg.w), int(y+cfg.h)))
+
+def extract_next(cfg, im):
+    return im.crop((cfg.tx, cfg.ty, cfg.tx + cfg.tw, cfg.ty + cfg.th))
 
 def config_for_image(im):
     w,h = im.size
@@ -66,76 +125,21 @@ def saveall(fn):
 
 #saveall('sample/IMG_3189.PNG')
 
-def guess_classify(cfg, imc):
-    THRESH = 10000
-    possible = set()
-    for val, im in get_exemplars(cfg):
-        err = np.asarray(im).astype(float) - np.asarray(imc).astype(float)
-        if 0 < np.abs(err).sum() < THRESH:
-            possible.add(val)
-    if len(possible) == 1:
-        return possible.pop()
-    elif len(possible) > 1:
-        print "Warning: multiple matches %s; guesser may not be accurate!" % possible
-    return None
-
-def classify(cfg, imc):
-    if 'exemplars' not in cfg:
-        load_exemplars(cfg)
-    exemplars = cfg['exemplars']
-
-    key = to_imgkey(imc)
-    val = exemplars.get(key, None)
-    if val is not None:
-        return val
-
-    val = guess_classify(cfg, imc)
-    if val is not None:
-        print "Unrecognized object automatically classified as %d" % val
-    else:
-        imc.show()
-        val = raw_input("\aUnrecognized object! Recognize it and type in the value: ")
-
-    for i in xrange(1, 10000):
-        fn = os.path.join(get_exemplar_dir(cfg), '%s.%d.png' % (val, i))
-        if not os.path.isfile(fn):
-            imc.save(fn)
-            break
-    else:
-        print "Failed to save exemplar."
-    exemplars = load_exemplars(cfg)
-    return exemplars[key]
-
-def find_next_tile(cfg, im):
-    px = im.getpixel((cfg['tx'], cfg['ty']))[:3]
-    ret = {
-        (102, 204, 255): 1,
-        (255, 102, 128): 2,
-        (254, 255, 255): 3,
-        (0, 0, 0): 4,
-        (119, 126, 140): -1, # lose
-    }.get(px, 0)
-    if ret == 0:
-        print "Warning: unknown next tile (px=%s)!" % (px,)
-        im.show()
-    return ret
-
 def ocr(fn):
     im = Image.open(fn)
     cfg = config_for_image(im)
 
-    tile = find_next_tile(cfg, im)
-    if tile == 0:
-        return None, tile
-
+    imc = extract_next(cfg, im)
+    tileset = cfg.next_matcher.classify(imc)
+    tileset = [to_ind(int(t)) for t in tileset.split(',')]
     out = np.zeros((4,4), dtype=int)
 
     for r in xrange(4):
         for c in xrange(4):
-            imc = extract(cfg, im, r, c)
-            out[r,c] = to_ind(classify(cfg, imc))
+            imc = extract_tile(cfg, im, r, c)
+            out[r,c] = to_ind(int(cfg.tile_matcher.classify(imc)))
 
-    return out, tile
+    return out, tileset
 
 if __name__ == '__main__':
     import sys
