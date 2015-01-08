@@ -3,7 +3,7 @@
 import time
 from threes import *
 from collections import Counter
-from threes_ai_c import find_best_move
+from threes_ai_c import find_best_move, set_heurweights
 from deck_reconstruct import DeckReconstructor
 
 __author__ = 'Robert Xiao <nneonneo@gmail.com>'
@@ -91,6 +91,7 @@ def run_assistant(gen_board, make_move_func, from_start=True):
         If False, the deck will be estimated.
     '''
 
+    set_heurweights(2.5603675951186942, 48.075499534692185, 0.70005740882109824, 127.87624414823753, 253.7959629528122, 945.27171328243628, 674.42839422651991)
     board = None
     deck = None
     moveno = 0

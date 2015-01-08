@@ -7,6 +7,7 @@ import numpy as np
 # static float SCORE_SUM_POWER = 3.5f;
 # static float SCORE_SUM_WEIGHT = 11.0f;
 # static float SCORE_MERGES_WEIGHT = 700.0f;
+# static float SCORE_12_MERGES_WEIGHT = 700.0f;
 # static float SCORE_EMPTY_WEIGHT = 270.0f;
 
 # weights from the 2048 AI
@@ -18,11 +19,11 @@ import numpy as np
 # sigma0 = 0.711489393676
 
 # best weights found by second CMA-ES optimization
-x0_scaled = np.asarray((2.88734532873, 2.7658329942, 1.01944491674, 0.825579254038, 2.94556333483, 1.86127118327))
-sigma0 = 0.456169174299
+x0_scaled = np.asarray((2.88734532873, 2.7658329942, 1.01944491674, 0.825579254038, 2.94556333483, 2.94556333483, 1.86127118327))
+sigma0 = 1.0 #0.456169174299
 
 # scale to convert normalized CMA-ES values into heuristic weights
-scale = np.asarray((1.0, 25.0, 1.0, 50.0, 200.0, 200.0))
+scale = np.asarray((1.0, 25.0, 1.0, 50.0, 200.0, 200.0, 200.0))
 
 def objective(x):
     y = x * scale
@@ -30,7 +31,7 @@ def objective(x):
     result = 0
     for i in xrange(10):
         print "SETTINGS %s RUN %d" % (list(y), i+1)
-        result += threes_ai_c.play_with_search()
+        result += threes_ai_c.play_with_search(verbose=False)
     return -result
 
 cma.fmin(objective, x0_scaled, sigma0)
