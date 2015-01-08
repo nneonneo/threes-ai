@@ -1,8 +1,8 @@
-0.000000 /dev/input/event1 3 57 4322
-0.000000 /dev/input/event1 3 53 466
-0.000000 /dev/input/event1 3 54 1463
-0.000000 /dev/input/event1 3 58 48
-0.000000 /dev/input/event1 3 48 4
+0.000000 /dev/input/event1 3 57 594
+0.000000 /dev/input/event1 3 53 481
+0.000000 /dev/input/event1 3 54 1570
+0.000000 /dev/input/event1 3 58 51
+0.000000 /dev/input/event1 3 48 5
 0.000000 /dev/input/event1 0 0 0
-0.058322 /dev/input/event1 3 57 -1
-0.058322 /dev/input/event1 0 0 0
+0.041431 /dev/input/event1 3 57 -1
+0.041431 /dev/input/event1 0 0 0
