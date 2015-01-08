@@ -58,7 +58,7 @@ class ExemplarMatcher:
             self.lastid[val] = max(self.lastid.get(val, 0), ind)
         self.loaded = True
 
-    def guess_classify(self, imc, thresh=1e6):
+    def guess_classify(self, imc, thresh=500000):
         possible = set()
         imcarr = np.asarray(imc).astype(float)
         for val, ind, im in self.get_exemplars():
