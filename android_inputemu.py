@@ -21,6 +21,10 @@ def get_build_prop(shell):
 
     return out
 
+def get_model(shell):
+    props = get_build_prop(shell)
+    return '%(ro.product.manufacturer)s %(ro.product.model)s'%props
+
 def get_ident(shell):
     props = get_build_prop(shell)
     return '%(ro.product.manufacturer)s %(ro.product.model)s %(ro.build.id)s'%props

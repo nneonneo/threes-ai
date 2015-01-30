@@ -57,11 +57,12 @@ if __name__ == '__main__':
     dirname, startfn = sys.argv[1:]
 
     deck = None
-    from ocr import ocr
+    from ocr import OCR
+    ocr = OCR("LGE Nexus 5")
     imglist = sorted([fn for fn in os.listdir(dirname) if fn >= startfn])
     for fn in imglist:
         print fn
-        board, tileset = ocr(os.path.join(dirname, fn))
+        board, tileset = ocr.ocr(os.path.join(dirname, fn))
         if deck is None:
             deck = DeckReconstructor(board)
         deck.update(tileset[0])

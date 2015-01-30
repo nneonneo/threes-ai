@@ -9,25 +9,26 @@ import os
 import re
 from cStringIO import StringIO
 
-from ocr import ocr
+from ocr import OCR
 from base_assistant import run_assistant, movenames
-from android_inputemu import get_ident, playback_gesture
+from android_inputemu import get_model, get_ident, playback_gesture
 from threes import do_move
 
 re_sshot = r'^S_(\d{6}).png$'
 fmt_sshot = r'S_%06d.png'
 
 class AndroidAssistant:
-    def __init__(self, shell, ident):
+    def __init__(self, shell, ident, ocr):
         self.shell = shell
         self.ident = ident
+        self.ocr = ocr
         self.last_board = None
 
     def gen_board_mem(self):
         while True:
             sshot_data = self.shell.execute('screencap -p')
             sshot_file = StringIO(sshot_data)
-            board, tileset = ocr(sshot_file)
+            board, tileset = self.ocr.ocr(sshot_file)
             self.last_board = board
             yield board, tileset, False
 
@@ -39,7 +40,7 @@ class AndroidAssistant:
                 last = imglist[-1]
                 for fn in imglist:
                     print fn
-                    board, tileset = ocr(os.path.join(d, fn))
+                    board, tileset = self.ocr.ocr(os.path.join(d, fn))
                     skip = (fn != last)
                     self.last_board = board
                     yield board, tileset, skip
@@ -48,7 +49,7 @@ class AndroidAssistant:
         while True:
             sshot_data = self.shell.execute('screencap -p')
             sshot_file = StringIO(sshot_data)
-            board, tileset = ocr(sshot_file)
+            board, tileset = self.ocr.ocr(sshot_file)
             if board is None:
                 # Wait a bit and retry
                 print "Retrying screenshot..."
@@ -116,9 +117,10 @@ def main(argv):
     args = parse_args(argv)
 
     shell = ADBShell()
+    model = get_model(shell)
     ident = get_ident(shell)
 
-    assistant = AndroidAssistant(shell, ident)
+    assistant = AndroidAssistant(shell, ident, OCR(model))
 
     if args.repeat:
         iterations = count(1)

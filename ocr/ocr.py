@@ -3,24 +3,9 @@ import numpy as np
 import os
 import re
 import glob
+from devices import CONFIGS
 
 DNAME = os.path.dirname(__file__)
-
-class Namespace(object):
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-
-CONFIGS = {
-    # (screen_width, screen_height): settings dictionary
-    # x0,y0: top left corner of the first tile
-    # w,h: size of the tile sample
-    # dx,dy: spacing between adjacent tiles
-    # tx,ty,tw,th: next-tile sample rectangle
-    # sw,sh: screen width and height (set automatically)
-
-#    (640, 1136): Namespace(x0=92, y0=348,  w=96, h=80,  dx=120, dy=160,  tx=320, ty=146),    # Retina 4" iPhone/iPod # NEEDS tw,th
-    (1080, 1920): Namespace(x0=141, y0=577,  w=144, h=112,  dx=219, dy=292,  tx=310, ty=128, tw=460, th=188),    # Nexus 5
-}
 
 def to_ind(val):
     return {0:0, 1:1, 2:2, 3:3, 6:4, 12:5, 24:6, 48:7, 96:8, 192:9, 384:10, 768:11, 1536:12, 3072:13, 6144:14}[val]
@@ -29,8 +14,9 @@ def to_imgkey(imc):
     return np.asarray(imc).tostring()
 
 class ExemplarMatcher:
-    def __init__(self, cfg, tag, thresh=500000):
+    def __init__(self, cfg, dir, tag, thresh=500000):
         self.cfg = cfg
+        self.dir = dir
         self.tag = tag
         self.loaded = False
         self.exemplars = {}
@@ -43,7 +29,7 @@ class ExemplarMatcher:
 
     @property
     def exemplar_dir(self):
-        return os.path.join(DNAME, 'exemplars', '%dx%d' % (self.cfg.sw, self.cfg.sh), self.tag)
+        return os.path.join(DNAME, 'exemplars', self.dir, self.tag)
 
     def get_exemplars(self):
         d = self.exemplar_dir
@@ -94,12 +80,6 @@ class ExemplarMatcher:
         self.lastid[val] = nid
         return val
 
-for (w,h),cfg in CONFIGS.iteritems():
-    cfg.sw = w
-    cfg.sh = h
-    cfg.next_matcher = ExemplarMatcher(cfg, 'next', 50000)
-    cfg.tile_matcher = ExemplarMatcher(cfg, 'tile', 500000)
-
 def extract_tile(cfg, im, r, c):
     x = cfg.x0 + c*cfg.dx
     y = cfg.y0 + r*cfg.dy
@@ -109,44 +89,42 @@ def extract_tile(cfg, im, r, c):
 def extract_next(cfg, im):
     return im.crop((cfg.tx, cfg.ty, cfg.tx + cfg.tw, cfg.ty + cfg.th))
 
-def config_for_image(im):
-    w,h = im.size
-    if (w,h) not in CONFIGS:
-        raise Exception("No OCR configuration for screen size %dx%d!" % (w,h))
-    return CONFIGS[w,h]
+class OCR:
+    def __init__(self, model):
+        if model not in CONFIGS:
+            raise ValueError("Configuration for model %s not found: please add it in devices.py" % model)
+        self.cfg = CONFIGS[model]
+        self.next_matcher = ExemplarMatcher(self.cfg, model, 'next', 50000)
+        self.tile_matcher = ExemplarMatcher(self.cfg, model, 'tile', 500000)
 
-def saveall(fn):
-    im = Image.open(fn)
-    cfg = config_for_image(im)
-    fn, ext = os.path.splitext(fn)
+    def ocr(self, fn):
+        if isinstance(fn, Image.Image):
+            im = fn
+        else:
+            im = Image.open(fn)
+        imc = extract_next(self.cfg, im)
+        tileset = self.next_matcher.classify(imc)
+        if tileset == 'gameover':
+            return None, None
+        tileset = [to_ind(int(t)) for t in tileset.split(',')]
+        out = np.zeros((4,4), dtype=int)
 
-    for r in xrange(4):
-        for c in xrange(4):
-            extract(cfg, im, r, c).save(fn + '-r%dc%d.png' % (r,c))
+        for r in xrange(4):
+            for c in xrange(4):
+                imc = extract_tile(self.cfg, im, r, c)
+                out[r,c] = to_ind(int(self.tile_matcher.classify(imc)))
 
-#saveall('sample/IMG_3189.PNG')
-
-def ocr(fn):
-    im = Image.open(fn)
-    cfg = config_for_image(im)
-
-    imc = extract_next(cfg, im)
-    tileset = cfg.next_matcher.classify(imc)
-    if tileset == 'gameover':
-        return None, None
-    tileset = [to_ind(int(t)) for t in tileset.split(',')]
-    out = np.zeros((4,4), dtype=int)
-
-    for r in xrange(4):
-        for c in xrange(4):
-            imc = extract_tile(cfg, im, r, c)
-            out[r,c] = to_ind(int(cfg.tile_matcher.classify(imc)))
-
-    return out, tileset
+        return out, tileset
 
 if __name__ == '__main__':
     import sys
-    for fn in sys.argv[1:]:
+    if len(sys.argv) < 3:
+        print "Usage:", sys.argv[0], "modelname", "files..."
+        exit()
+
+    model = sys.argv[1]
+    ocr = OCR(model)
+    for fn in sys.argv[2:]:
         print fn
-        print ocr(fn)
+        print ocr.ocr(fn)
         print

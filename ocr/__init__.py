@@ -1,1 +1,1 @@
-from ocr import ocr
+from ocr import OCR
