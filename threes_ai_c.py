@@ -33,6 +33,8 @@ if MULTITHREAD:
         board, deck, tileset = get_c_state(m, deck, tileset)
 
         scores = pool.map(score_toplevel_move, [(board, deck, tileset, move) for move in xrange(4)])
+        # To minimize score:
+        # bestmove, bestscore = min(enumerate(scores), key=lambda x:x[1] or 1e100)
         bestmove, bestscore = max(enumerate(scores), key=lambda x:x[1])
         return bestmove
 else:
