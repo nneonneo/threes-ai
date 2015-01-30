@@ -15,10 +15,10 @@ typedef std::map<board_t, float> trans_table_t;
 typedef std::unordered_map<board_t, float> trans_table_t;
 
 // Transpose rows/columns in a board:
-//   0123       048c
-//   4567  -->  159d
-//   89ab       26ae
-//   cdef       37bf
+//   0123       0426       048c
+//   4567  -->  1537  -->  159d
+//   89ab       8cae       26ae
+//   cdef       9dbf       37bf
 static inline board_t transpose(board_t x)
 {
 	board_t a1 = x & 0xF0F00F0FF0F00F0FULL;
