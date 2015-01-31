@@ -6,7 +6,7 @@ Building this AI was the inspiration for my later [2048 AI](https://github.com/n
 
 While I have not formally benchmarked the performance of this AI (yet), I know that it has successfully attained the 6144 tile multiple times, which is the highest tile available in the game. (Higher tiles are possible but unlikely, due to heavy random effects). The top score (at time of writing) is 775,524 points:
 
-![](http://imgur.com/IaTPZyo)
+![775524 points](http://imgur.com/IaTPZyo.png)
 
 # Algorithm
 
