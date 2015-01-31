@@ -352,12 +352,19 @@ class ADBShell:
             prompt += s
             if prompt.endswith(b'$ ') or prompt.endswith(b'# '):
                 break
+            elif prompt.endswith(b'\x1b[6n'):
+                # Device status report: we need to write the window size now (rows, cols)
+                self.proc.stdin.write('\x1b[%d;%dR' % (10000000, 10000000))
+                self.proc.stdin.flush()
+                prompt = ''
         else:
             if prompt:
                 warn("nonstandard prompt %r" % prompt.decode())
             else:
                 warn("timed out waiting for prompt!")
 
+        # remove restore-cursor command
+        prompt = prompt.replace('\x1b8', '')
         m = re.match(br'^(\w+)@(\w+):(.*?) ([$#]) $', prompt)
         if m:
             self.user = m.group(1).decode()
