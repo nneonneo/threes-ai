@@ -41,6 +41,7 @@ static row_t row_left_table[65536];
 static row_t row_right_table[65536];
 static board_t col_up_table[65536];
 static board_t col_down_table[65536];
+static char row_max_table[65536];
 static float heur_score_table[65536];
 static float score_table[65536];
 
@@ -86,6 +87,7 @@ void init_tables() {
             }
         }
         score_table[row] = score;
+        row_max_table[row] = std::max(std::max(line[0], line[1]), std::max(line[2], line[3]));
 
 
         // Heuristic score
@@ -271,11 +273,15 @@ static inline board_t execute_move(int move, board_t board, int *changed) {
     }
 }
 
+static inline int get_row_max_rank(row_t row) {
+    return row_max_table[row];
+}
+
 static inline int get_max_rank(board_t board) {
     int maxrank = 0;
     while (board) {
-        maxrank = std::max(maxrank, int(board & 0xf));
-        board >>= 4;
+        maxrank = std::max(maxrank, get_row_max_rank(board & ROW_MASK));
+        board >>= 16;
     }
     return maxrank;
 }
@@ -475,12 +481,45 @@ static float _score_toplevel_move(eval_state &state, board_t board, deck_t deck,
     return result / choices + 1e-6;
 }
 
+static row_t get_quadrant(board_t board, int quadrant) {
+    /* Get a single quadrant of the board.
+    Return: position 0 = corner, position 1 = top/bottom edge, position 2 = left/right edge, position 3 = middle:
+
+    0123
+    4567 --> 0145, 3276, cd89, feba
+    89ab
+    cdef
+    */
+
+    static const char quadrants[4][4] = { {0,1,4,5}, {3,2,7,6}, {12,13,8,9}, {15,14,11,10} };
+    row_t ret = 0;
+    for(int i=0; i<4; i++) {
+        ret |= ((board >> (4*quadrants[quadrant][i])) & 0xf) << (i*4);
+    }
+    return ret;
+}
+
 float score_toplevel_move(board_t board, deck_t deck, tileset_t tileset, int move) {
     float res;
     struct timeval start, finish;
     double elapsed;
     eval_state state;
+
     state.depth_limit = std::max(3, count_distinct_tiles(board) - 2);
+
+    /* Opposite-corners penalty */
+    int corner_disparity = 0;
+    int maxrank = get_max_rank(board);
+    for(int q=0; q<4; q++) {
+        if(get_row_max_rank(get_quadrant(board, q)) == maxrank) {
+            /* Get rank in the opposite corner */
+            corner_disparity = maxrank - get_row_max_rank(get_quadrant(board, 3-q));
+            break;
+        }
+    }
+    if(corner_disparity <= 4 && maxrank >= 9) {
+        state.depth_limit += 2;
+    }
 
     gettimeofday(&start, NULL);
     res = _score_toplevel_move(state, board, deck, tileset, move);
