@@ -2,8 +2,6 @@
 
 This assistant remote-controls an Android device via ADB, playing the game without human intervention. '''
 
-from adb_shell import ADBShell
-
 import time
 import os
 import re
@@ -11,7 +9,8 @@ from cStringIO import StringIO
 
 from ocr import OCR
 from base_assistant import run_assistant, movenames
-from android_inputemu import get_model, get_ident, playback_gesture
+from android.adb_shell import ADBShell
+from android.inputemu import get_model, get_ident, playback_gesture
 from threes import do_move
 
 re_sshot = r'^S_(\d{6}).png$'

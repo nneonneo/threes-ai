@@ -1,6 +1,6 @@
 ''' Record and playback input event gestures on Android. '''
 
-from adb_shell import ADBShell
+from .adb_shell import ADBShell
 import time
 import re
 import os

@@ -39,7 +39,7 @@ To use `android_assistant.py`, you will need to configure the OCR subsystem for 
 
 To configure the OCR system, you should add an entry in `ocr/devices.py` corresponding to your device. The model name can be obtained by simply running `android_assistant.py` while connected to the device (it should error out with the expected model name). Essentially, you will need to take a screenshot of the game and derive the position of the "upcoming tile" pane, as well as the position and spacing of the tile grid. (This part could probably use more automation and/or simplification!)
 
-To record events, simply run `android_inputemu.py --record up down left right` and execute the appropriate gesture on your phone when prompted.
+To record events, simply run `python -m android.inputemu --record up down left right` and execute the appropriate gesture on your phone when prompted.
 
 ## Manual assistant
 The manual assistant is a general-purpose Threes! assistant that works with any implementation of Threes!. You tell it the board and upcoming tile set, and the assistant calculates the best move.
