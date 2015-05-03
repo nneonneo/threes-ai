@@ -3,7 +3,16 @@ import numpy as np
 import os
 import sys
 
-threes = ctypes.CDLL(os.path.join(os.path.dirname(__file__), 'bin', 'threes.dylib'))
+for suffix in ['so', 'dll', 'dylib']:
+    dllfn = 'bin/threes.' + suffix
+    if not os.path.isfile(dllfn):
+        continue
+    threes = ctypes.CDLL(dllfn)
+    break
+else:
+    print("Couldn't find threes library bin/threes.{so,dll,dylib}! Make sure to build it first.")
+    exit()
+
 threes.init_tables()
 
 threes.find_best_move.argtypes = [ctypes.c_uint64, ctypes.c_uint32, ctypes.c_uint16]

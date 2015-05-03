@@ -7,12 +7,26 @@
 #include <sys/time.h>
 #include "threes.h"
 
-/*
-#include <map>
-typedef std::map<board_t, float> trans_table_t;
-*/
-#include <unordered_map>
-typedef std::unordered_map<board_t, float> trans_table_t;
+#include "config.h"
+#if defined(HAVE_UNORDERED_MAP)
+    #include <unordered_map>
+    typedef std::unordered_map<board_t, float> trans_table_t;
+#elif defined(HAVE_TR1_UNORDERED_MAP)
+    #include <tr1/unordered_map>
+    typedef std::tr1::unordered_map<board_t, float> trans_table_t;
+#else
+    #include <map>
+    typedef std::map<board_t, float> trans_table_t;
+#endif
+
+/* MSVC compatibility: undefine max and min macros */
+#if defined(max)
+#undef max
+#endif
+
+#if defined(min)
+#undef min
+#endif
 
 // Transpose rows/columns in a board:
 //   0123       0426       048c
@@ -543,7 +557,7 @@ int find_best_move(board_t board, deck_t deck, tileset_t tileset) {
     float best = 0;
     int bestmove = -1;
 
-    printf("%s\n", BOARDSTR(board, '\n'));
+    print_board(board);
     printf("Current scores: heur %.0f, actual %.0f\n", score_heur_board(board), score_board(board));
     printf("Next tile:");
     int t;
@@ -570,7 +584,7 @@ int ask_for_move(board_t board, deck_t deck, tileset_t tileset) {
 
     (void)deck;
 
-    printf("%s\n", BOARDSTR(board, '\n'));
+    print_board(board);
 
     for(move=0; move<4; move++) {
         int changed;
@@ -612,7 +626,7 @@ static int draw_deck(deck_t *deck) {
     int a = DECK_1(*deck);
     int b = DECK_2(*deck);
     int c = DECK_3(*deck);
-    int r = UNIF_RANDOM(a+b+c);
+    int r = unif_random(a+b+c);
 
     if(r < a) {
         *deck = DECK_SUB_1(*deck);
@@ -637,7 +651,7 @@ static board_t initial_board(deck_t *deck) {
 
     /* Shuffle the board (Fisher-Yates) */
     for(i=15; i>=1; i--) {
-        int j = UNIF_RANDOM(i+1);
+        int j = unif_random(i+1);
         board_t exc = ((board >> (4*i)) & 0xf) ^ ((board >> (4*j)) & 0xf);
         board ^= (exc << (4*i));
         board ^= (exc << (4*j));
@@ -652,7 +666,7 @@ static int random_tile(tileset_t choices) {
     FOREACH_TILE(t, choices)
         count++;
 
-    int r = UNIF_RANDOM(count);
+    int r = unif_random(count);
     FOREACH_TILE(t, choices) {
         if(r == 0)
             break;
@@ -679,13 +693,13 @@ void play_game(get_move_func_t get_move) {
             olddeck = deck = INITIAL_DECK;
 
         /* TODO: find out if this is actually how the random high tiles are drawn */
-        if(maxrank >= 7 && UNIF_RANDOM(HIGH_CARD_FREQ) == 0) {
+        if(maxrank >= 7 && unif_random(HIGH_CARD_FREQ) == 0) {
             if(maxrank == 7) {
                 tileset = 1<<4;
             } else if(maxrank == 8) {
                 tileset = 3<<4;
             } else {
-                tileset = 7<<(UNIF_RANDOM(maxrank-8)+4);
+                tileset = 7<<(unif_random(maxrank-8)+4);
             }
         } else {
             tileset = 1<<draw_deck(&deck);
@@ -700,7 +714,7 @@ void play_game(get_move_func_t get_move) {
 
         board = execute_move(move, board, &changed);
         int count = changed >> 8;
-        int choice = UNIF_RANDOM(count);
+        int choice = unif_random(count);
         for(i=0; i<4; i++) {
             if(changed & (1<<i)) {
                 if(choice == 0)
@@ -712,7 +726,7 @@ void play_game(get_move_func_t get_move) {
         board = insert_tile(move, board, i, tile);
     }
 
-    printf("%s\n", BOARDSTR(board, '\n'));
+    print_board(board);
     printf("\nGame over. Your score is %.0f. The highest rank you achieved was %d.\n", score_board(board), get_max_rank(board));
 }
 
