@@ -26,7 +26,7 @@ def get_c_state(m, deck, tileset):
     ''' Convert a NumPy board, dictionary deck, and tile set into C state variables. '''
     board = 0
     for i,v in enumerate(m.flatten()):
-        board |= v << (4*i)
+        board |= long(v) << (4*i)
     deck = (m.max() << 24) | (deck[1]) | (deck[2] << 8) | (deck[3] << 16)
     tileset = sum((1 << t) for t in tileset)
     return board, deck, tileset
