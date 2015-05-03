@@ -1,5 +1,3 @@
-# About
-
 AI for the game Threes! by Sirvo LLC. You can get the game from here: http://asherv.com/threes/
 
 Building this AI was the inspiration for my later [2048 AI](https://github.com/nneonneo/2048-ai), and some of the ideas from the 2048 AI have been backported to this AI as well.
@@ -10,29 +8,48 @@ While I have not formally benchmarked the performance of this AI (yet), I know t
 
 This AI is a lot more experimental than its newer sibling 2048 AI because of the increased complexity of Threes! and because it has not received as much development time. Furthermore, Threes! is in general a bit of a moving target as the random tile generation algorithms are occasionally tweaked, necessitating changes in the AI.
 
-# Algorithm
+## Algorithm
 
 The algorithm for this AI is already essentially detailed in [this StackOverflow answer](http://stackoverflow.com/a/22498940/1204143) describing my 2048 AI. In essence, it implements a highly-optimized bruteforce search over the game tree (all possible moves, tile spawn values and tile values), using expectimax optimization to combine the results and find the "best" possible move.
 
 This Threes AI is actually more sophisticated than the 2048 AI in a number of ways: most notably, it accounts for the "deck" of upcoming tiles (the well-documented process by which the random incoming tiles are selected), and it properly handles all the possible tile spawn locations based on the moves that are made. In short: this Threes AI correctly (to the best of my knowledge) emulates every detail of the Threes game as part of the expectimax optimization process.
 
-# Building
+## Building
 
-Right now the AI only builds out-of-the-box on OS X. It will build on Linux, Unix and Cygwin with a bit more work. Notably, the code requires C++11, and the `UNIF_RANDOM` function should be replaced by a platform-specific uniform random number function (since `arc4random_uniform` is only available on BSD).
+### Unix/Linux/OS X
 
-Simply run `make` to build the C++ components of the AI.
+Execute
 
-## Python prerequisites
+    ./configure
+    make
+
+in a terminal. Any relatively recent C++ compiler should be able to build the output.
+
+Note that you don't do `make install`; this program is meant to be run from this directory.
+
+### Windows
+
+You have a few options, depending on what you have installed.
+
+- Pure Cygwin: follow the Unix/Linux/OS X instructions above. The resulting DLL can *only* be used with Cygwin programs, so
+to run the browser control version, you must use the Cygwin Python (not the python.org Python). For step-by-step instructions, courtesy Tamas Szell (@matukaa), see [this document](https://github.com/nneonneo/2048-ai/wiki/CygwinStepByStep.pdf).
+- Cygwin with MinGW: run
+
+        CXX=x86_64-w64-mingw32-g++ CXXFLAGS='-static-libstdc++ -static-libgcc -D_WINDLL -D_GNU_SOURCE=1' ./configure ; make
+
+    in a MinGW or Cygwin shell to build. The resultant DLL can be used with non-Cygwin programs.
+- Visual Studio: open a Visual Studio command prompt, `cd` to the threes-ai directory, and run `make-msvc.bat`.
+
+## Running
+### Python prerequisites
 
 You'll need Python 2.7, NumPy and PIL to run the Python programs.
 
-## Running the command-line version
+### Running the command-line version
 
 Run `bin/threes` if you want to see the AI by itself in action.
 
-# Playing the game
-
-## Android assistant
+### Android assistant
 There are some web-based versions of Threes, but I wanted to make the AI play against the real app. So, I built an "assistant" program for Android devices, called `android_assistant.py`, which communicates with the phone over ADB and makes moves completely automatically. It requires only USB ADB permissions (standard developer access), and does not require rooting or any other modification of the device or app. It uses the standard Android `screencap` utility to obtain the (visible) game state, computes the optimal move, then uses the Linux input event subsystem to generate swipe events.
 
 To use `android_assistant.py`, you will need to configure the OCR subsystem for your device. You will also have to record swipe events for replay. Currently, two devices are configured: the LG Nexus 5 and the OnePlus One (corresponding to the phones I have tested this on). Patches are welcome to add more phones.
@@ -41,15 +58,14 @@ To configure the OCR system, you should add an entry in `ocr/devices.py` corresp
 
 To record events, simply run `python -m android.inputemu --record up down left right` and execute the appropriate gesture on your phone when prompted.
 
-## Manual assistant
+### Manual assistant
 The manual assistant is a general-purpose Threes! assistant that works with any implementation of Threes!. You tell it the board and upcoming tile set, and the assistant calculates the best move.
 
-### Running
 Run `manual_assistant.py` to start the manual assistant.
 
 Note that the manual assistant expects to see sequential moves. If you skip ahead (making moves without the assistant), quit the assistant by pressing Ctrl+C and start it again. Otherwise, you might receive an error message like "impossible situation" if you enter a board that is not sequential to the previous board.
 
-### Entering boards
+#### Entering boards
 
 When entering the next board, you can use spaces, newlines and/or commas to separate tiles. Read from left to right, then top to bottom. Enter a zero for empty spaces. Example input:
 
@@ -94,7 +110,7 @@ then you'd send `2,3,up` as the board (in the 2nd column, a 3 spawned). If the A
 
 By entering deltas, you will save yourself a lot of time. In most cases, you only need to enter one number (the column/row that changed).
 
-### Entering tiles
+#### Entering tiles
 When entering the upcoming tile, use one of the following formats:
 
 - a color: `blue` (1), `red` (2) or `white` (3+)
