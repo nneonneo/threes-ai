@@ -283,6 +283,8 @@ static inline board_t execute_move(int move, board_t board, int *changed) {
     case 3: // right
         return execute_move_3(board, changed);
     default:
+        // should not happen
+        *changed = 0;
         return ~0ULL;
     }
 }
