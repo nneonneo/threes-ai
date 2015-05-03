@@ -71,15 +71,15 @@ typedef uint16_t tileset_t;
 extern "C" {
 #endif
 
-void set_heurweights(float *f, int flen);
+DLL_PUBLIC void set_heurweights(float *f, int flen);
 
-void init_tables(void);
+DLL_PUBLIC void init_tables(void);
 
 typedef int (*get_move_func_t)(board_t, deck_t, tileset_t);
-float score_toplevel_move(board_t board, deck_t deck, tileset_t tileset, int move);
-int find_best_move(board_t board, deck_t deck, tileset_t tileset);
-int ask_for_move(board_t board, deck_t deck, tileset_t tileset);
-void play_game(get_move_func_t get_move);
+DLL_PUBLIC float score_toplevel_move(board_t board, deck_t deck, tileset_t tileset, int move);
+DLL_PUBLIC int find_best_move(board_t board, deck_t deck, tileset_t tileset);
+DLL_PUBLIC int ask_for_move(board_t board, deck_t deck, tileset_t tileset);
+DLL_PUBLIC void play_game(get_move_func_t get_move);
 
 #ifdef __cplusplus
 }
