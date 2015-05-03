@@ -5,6 +5,21 @@
 
 #include <stdlib.h>
 
+/** Assume GCC/Clang have __builtin_ctz */
+#ifdef _MSC_VER
+#include <intrin.h>
+
+static inline unsigned long ctz(unsigned long value) {
+    unsigned long trailing_zero = 32; // undefined
+    _BitScanForward(&trailing_zero, value);
+    return trailing_zero;
+}
+#else
+static inline unsigned long ctz(unsigned long value) {
+    return __builtin_ctzl(value);
+}
+#endif
+
 /** unif_random */
 /* unif_random is defined as a random number generator returning a value in [0..n-1]. */
 #if defined(HAVE_ARC4RANDOM_UNIFORM)

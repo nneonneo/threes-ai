@@ -49,7 +49,7 @@ typedef uint32_t deck_t;
 /* Candidate tileset */
 typedef uint16_t tileset_t;
 
-#define FOREACH_TILE(t,tileset) for(tileset_t _tmp = (tileset); t=__builtin_ctz(_tmp), _tmp != 0; _tmp &= _tmp-1)
+#define FOREACH_TILE(t,tileset) for(tileset_t _tmp = (tileset); t=ctz(_tmp), _tmp != 0; _tmp &= _tmp-1)
 
 #define DECK_SUB_1(deck) ((deck)-1)
 #define DECK_SUB_2(deck) ((deck)-(1<<8))
