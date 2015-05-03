@@ -16,6 +16,20 @@ The algorithm for this AI is already essentially detailed in [this StackOverflow
 
 This Threes AI is actually more sophisticated than the 2048 AI in a number of ways: most notably, it accounts for the "deck" of upcoming tiles (the well-documented process by which the random incoming tiles are selected), and it properly handles all the possible tile spawn locations based on the moves that are made. In short: this Threes AI correctly (to the best of my knowledge) emulates every detail of the Threes game as part of the expectimax optimization process.
 
+# Building
+
+Right now the AI only builds out-of-the-box on OS X. It will build on Linux, Unix and Cygwin with a bit more work. Notably, the code requires C++11, and the `UNIF_RANDOM` function should be replaced by a platform-specific uniform random number function (since `arc4random_uniform` is only available on BSD).
+
+Simply run `make` to build the C++ components of the AI.
+
+## Python prerequisites
+
+You'll need Python 2.7, NumPy and PIL to run the Python programs.
+
+## Running the command-line version
+
+Run `bin/threes` if you want to see the AI by itself in action.
+
 # Playing the game
 
 ## Android assistant
@@ -40,13 +54,19 @@ Note that the manual assistant expects to see sequential moves. If you skip ahea
 When entering the next board, you can use spaces, newlines and/or commas to separate tiles. Read from left to right, then top to bottom. Enter a zero for empty spaces. Example input:
 
 - Using commas and newlines:
+
+
         96,2,3,0
         2,1,1,0
         2,1,0,0
         0,0,2,0
 - Using commas alone:
+
+
         96,2,3,0,2,1,1,0,2,1,0,0,0,0,2,0
 - Using spaces:
+
+
         96 2 3 0
         2 1 1 0
         2 1 0 0
@@ -82,17 +102,3 @@ When entering the upcoming tile, use one of the following formats:
     - `3+` means it could be a 3 or higher; use this with older Threes! that don't show a "plus" sign on bonus tiles
     - `6+` means it is any bonus tile; use this if the upcoming tile is "+"
     - `24,48,96` means it is one of those three; use this with newer Threes! that show you explicit options for the bonus tile value.
-
-# Building
-
-Right now the AI only builds out-of-the-box on OS X. It will build on Linux, Unix and Cygwin with a bit more work. Notably, the code requires C++11, and the `UNIF_RANDOM` function should be replaced by a platform-specific uniform random number function (since `arc4random_uniform` is only available on BSD).
-
-Simply run `make` to build the C++ components of the AI.
-
-## Python prerequisites
-
-You'll need Python 2.7, NumPy and PIL to run the Python programs.
-
-## Running the command-line version
-
-Run `bin/threes` if you want to see the AI by itself in action.
