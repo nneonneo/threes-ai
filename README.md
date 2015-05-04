@@ -16,6 +16,12 @@ This Threes AI is actually more sophisticated than the 2048 AI in a number of wa
 
 ## Building
 
+The easiest way to get the AI running is to clone one of the `prebuilt/` branches corresponding to your OS and processor. These branches have pre-built binaries in the `bin/` directory.
+
+Note that the "default" Python on Windows is 32-bit, while the "default" Python on OS X and Linux is 64-bit. 32-bit builds are tagged `i386` while 64-bit builds are tagged `x86_64`.
+
+If you want to build it yourself from source (e.g. if you're making changes), follow the directions below.
+
 ### Unix/Linux/OS X
 
 Execute
