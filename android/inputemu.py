@@ -1,6 +1,6 @@
 ''' Record and playback input event gestures on Android. '''
 
-from .adb_shell import ADBShell
+from .adb_shell import ADBShell, ShellCommandException
 import time
 import re
 import os
@@ -30,18 +30,26 @@ def get_ident(shell):
     return '%(ro.product.manufacturer)s %(ro.product.model)s %(ro.build.id)s'%props
 
 def _write_events(shell, events):
-    # sendevent is slow.
-    # for dev, type, value, code in events:
-    #     shell.execute('sendevent %s %d %d %d' % (dev, type, value, code))
+    # Try using echo first, but if that fails then switch to sendevent permanently
+    if getattr(shell, 'use_sendevent', False):
+        for dev, type, value, code in events:
+            shell.execute('sendevent %s %d %d %d' % (dev, type, value, code))
+        return
+
     dat = {}
     for dev, type, value, code in events:
         if dev not in dat:
             dat[dev] = []
         dat[dev].append(struct.pack('<IIHHi', 0, 0, type, value, code))
 
-    for dev in dat:
-        s = ''.join('\\x%02x' % ord(c) for c in ''.join(dat[dev]))
-        shell.execute("echo -ne '%s' > %s" % (s, dev))
+    try:
+        for dev in dat:
+            s = ''.join('\\x%02x' % ord(c) for c in ''.join(dat[dev]))
+            shell.execute("echo -ne '%s' > %s" % (s, dev))
+    except ShellCommandException as e:
+        print "Warning: inputemu: adb echo failed (%s), falling back to sendevent" % e
+        shell.use_sendevent = True
+        _write_events(shell, events)
 
 def playback_gesture(shell, ident, gesture):
     gestfn = os.path.join('events', ident, gesture + '.txt')
