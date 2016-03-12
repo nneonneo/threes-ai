@@ -1,6 +1,12 @@
-''' Help the user achieve a high score in a real game of threes by using a move searcher.
+''' Help the user achieve a high score in a real game of Threes in your browser by using a move searcher.
 
-This assistant remote-controls http://play.threesgame.com, playing the game without human intervention. '''
+This assistant remote-controls a Threes webpage, playing the game without human intervention.
+
+Current Threes implementations supported:
+
+- http://threesjs.com (unofficial fan-made version)
+- http://play.threesgame.com (official port made by Threes! devs)
+'''
 
 import time
 import os
@@ -14,30 +20,15 @@ import numpy as np
 def to_ind(val):
     return {0:0, 1:1, 2:2, 3:3, 6:4, 12:5, 24:6, 48:7, 96:8, 192:9, 384:10, 768:11, 1536:12, 3072:13, 6144:14}[val]
 
-class KeyboardWebAssistant:
+class WebAssistant:
+    ''' General utilities for a web assistant '''
+    
     def __init__(self, ctrl):
         self.ctrl = ctrl
         self.setup()
 
     def execute(self, cmd):
         return self.ctrl.execute(cmd)
-
-    def setup(self):
-        # Obtain a reference to the game objects by temporarily hijacking requestAnimationFrame
-        self.ctrl.execute('''
-        var _raf_tmp = window.requestAnimationFrame;
-        window.requestAnimationFrame = function(f) { window.ThreesWebCore = f.scope; _raf_tmp.apply(this, arguments); }
-        ''')
-
-        while self.execute("typeof(window.ThreesWebCore)") == 'undefined':
-            time.sleep(0.01)
-
-        self.execute('''
-        window.requestAnimationFrame = _raf_tmp;
-        window.ThreesState = window.ThreesWebCore.app.host.game.__class__.state;
-        window.ThreesGame = window.ThreesState._states.get("game");
-        0;
-        ''')
 
     def send_key_event(self, action, key):
         # Use generic events for compatibility with Chrome, which (for inexplicable reasons) doesn't support setting keyCode on KeyboardEvent objects.
@@ -57,6 +48,100 @@ class KeyboardWebAssistant:
         time.sleep(0.01)
         self.send_key_event('keyup', key)
         time.sleep(0.02)
+
+    def setup(self):
+        pass
+
+    def gen_board(self):
+        raise NotImplementedError()
+
+    def make_move(self, move):
+        raise NotImplementedError()
+
+    def restart(self):
+        raise NotImplementedError()
+
+class ThreesJSAssistant(WebAssistant):
+    ''' Remote control http://threesjs.com '''
+    def __init__(self, ctrl):
+        self.ctrl = ctrl
+        self.setup()
+
+    def _is_game_over(self):
+        return self.execute('$(".endgame").length') > 0
+
+    def gen_board(self):
+        while True:
+            board = self.execute('''
+            var board = [];
+            for(var i=0; i<16; i++) {
+                board.push(0);
+            }
+            $(".board .tile").each(function(i, e) {
+                var pos = e.getAttribute("data-coords");
+                var ind = Number(pos[0]) * 4 + Number(pos[1]);
+                board[ind] = Number(e.innerText);
+            });
+            board;
+            ''')
+            # Convert board values to ranks
+            board = map(to_ind, board)
+            board = np.array(board).reshape((4, 4))
+
+            nextTile = self.execute('''
+            $(".next .tile").attr("class");
+            ''')
+
+            if 'blue' in nextTile:
+                tileset = {1}
+            elif 'red' in nextTile:
+                tileset = {2}
+            else:
+                # next tile chosen from any tile in {3, maxtile}
+                tileset = set()
+                maxtile = board.max()
+                n = 3
+                while n <= max(maxtile / 8, 3):
+                    tileset.add(n)
+                    n *= 2
+            print "possible tiles are %s" % tileset
+
+            tileset = set(map(to_ind, tileset))
+
+            # check for gameover
+            if self._is_game_over():
+                tileset = None
+
+            yield board, tileset, False
+
+    def make_move(self, move):
+        key = {'up': 38, 'down': 40, 'left': 37, 'right': 39}[move]
+        self.execute('document.THREE.game.move({which: %d})' % key)
+        time.sleep(0.5)
+
+    def restart(self):
+        self.send_keypress(13) # ENTER, to dismiss end-of-game dialog
+        self.execute('document.THREE.game.new_game()')
+
+class ThreesGameAssistant(WebAssistant):
+    ''' Remote control http://play.threesgame.com '''
+
+    def setup(self):
+        # Obtain a reference to the game objects by temporarily hijacking requestAnimationFrame
+        self.ctrl.execute('''
+        var _raf_tmp = window.requestAnimationFrame;
+        window.requestAnimationFrame = function(f) { window.ThreesWebCore = f.scope; _raf_tmp.apply(this, arguments); }
+        ''')
+
+        while self.execute("typeof(window.ThreesWebCore)") == 'undefined':
+            time.sleep(0.01)
+
+        self.execute('''
+        window.requestAnimationFrame = _raf_tmp;
+        window.ThreesState = window.ThreesWebCore.app.host.game.__class__.state;
+        window.ThreesGame = window.ThreesState._states.get("game");
+        0;
+        ''')
 
     def get_state(self):
         return self.execute('''window.ThreesGame.__class__.state''')[0]
@@ -103,6 +188,19 @@ class KeyboardWebAssistant:
 
         self.send_keypress(32) # space
 
+def guessWebImplementation(ctrl):
+    ''' Try to sniff what Threes implementation we're playing on.
+
+    We don't use the URL - that way, we can support compatible clones. '''
+    if ctrl.execute('typeof(document.THREE)') != 'undefined':
+        # threesjs.com
+        return ThreesJSAssistant
+    elif ctrl.execute('document.getElementById("device")') is not None:
+        # play.threesgame.com (official implementation)
+        return ThreesGameAssistant
+    else:
+        raise ValueError("Not yet able to support remote control of " + ctrl.execute('"" + window.location'))
+
 def parse_args(argv):
     import argparse
     parser = argparse.ArgumentParser(description="Control Threes! running on an Android phone")
@@ -130,7 +228,8 @@ def main(argv):
             args.port = 9222
         ctrl = ChromeDebuggerControl(args.port)
 
-    assistant = KeyboardWebAssistant(ctrl)
+    assistantClass = guessWebImplementation(ctrl)
+    assistant = assistantClass(ctrl)
 
     if args.repeat:
         iterations = count(1)
