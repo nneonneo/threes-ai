@@ -33,7 +33,7 @@ class ManualAssistant:
             return tileset
 
         maxval = board.max()
-        out = set(xrange(4, maxval-3))
+        out = set(xrange(4, maxval-3+1))
         if tileset == '3+':
             out |= {3}
         else:
