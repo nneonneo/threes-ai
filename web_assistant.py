@@ -12,7 +12,7 @@ from __future__ import print_function
 import time
 import os
 import re
-from cStringIO import StringIO
+import json
 
 from base_assistant import run_assistant, movenames
 from threes import do_move, to_val
@@ -83,10 +83,10 @@ class ThreesJSAssistant(WebAssistant):
                 var ind = Number(pos[0]) * 4 + Number(pos[1]);
                 board[ind] = Number(e.innerText);
             });
-            board;
+            JSON.stringify(board);
             ''')
             # Convert board values to ranks
-            board = map(to_ind, board)
+            board = list(map(to_ind, json.loads(board)))
             board = np.array(board).reshape((4, 4))
 
             nextTile = self.execute('''
@@ -150,10 +150,10 @@ class ThreesGameAssistant(WebAssistant):
     def gen_board(self):
         while True:
             board = self.execute('''
-            window.ThreesGame.grid.map(function(t) { return t.value; });
+            JSON.stringify(window.ThreesGame.grid.map(function(t) { return t.value; }));
             ''')
             # Convert board values to ranks
-            board = map(to_ind, board)
+            board = list(map(to_ind, json.loads(board)))
             # Reverse rows (the grid data starts at the bottom left
             board = np.array(board).reshape((4, 4))[::-1, :]
 
