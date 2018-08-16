@@ -341,7 +341,7 @@ class ADBShell:
 
         prompt = b''
         start = time.time()
-        while time.time() - start < 0.5:
+        while time.time() - start < 5.0:
             s = read_nonblock(self.proc.stdout)
             if not s:
                 res = self.proc.poll()
@@ -365,9 +365,9 @@ class ADBShell:
 
         # remove restore-cursor command
         prompt = prompt.replace(b'\x1b8', b'')
-        m = re.match(br'^(\w+)@(\w+):(.*?) ([$#]) $', prompt)
+        m = re.match(br'^(?:(\w+)@)?(\w+):(.*?) ([$#]) $', prompt)
         if m:
-            self.user = m.group(1).decode()
+            self.user = m.group(1).decode() if m.group(1) else None
             self.host = m.group(2).decode()
             self.cwd = m.group(3).decode()
             self.hash = m.group(4).decode()
