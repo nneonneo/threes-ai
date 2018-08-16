@@ -4,6 +4,7 @@ This is useful for renaming files from a new DCIM folder to an older one, which
 may be necessary if the DCIM folder changes during an assisted run.
 '''
 
+from __future__ import print_function
 import os
 import shutil
 import time
@@ -25,7 +26,7 @@ if __name__ == '__main__':
     d1, d2 = sys.argv[1:]
     for fn in watchdir(d1):
         dfn = os.path.join(d2, os.path.basename(fn))
-        print '%s -> %s' % (fn, dfn)
+        print('%s -> %s' % (fn, dfn))
         try:
             os.rename(fn, os.path.join(d2, os.path.basename(fn)))
         except (IOError, OSError):

@@ -2,6 +2,7 @@
 
 This assistant watches a directory of screenshot files, and makes a move when it detects a new screenshot. '''
 
+from __future__ import print_function
 import time
 import os
 
@@ -22,18 +23,18 @@ def gen_board(ocr, d, startpoint=None):
     if startpoint is not None:
         for fn in os.listdir(d):
             if fn >= startpoint and not fn.startswith('.'):
-                print fn
+                print(fn)
                 fn = os.path.join(d, fn)
                 board, tileset = ocr.ocr(fn)
                 yield board, tileset, True
 
     for fn in watchdir(d):
         board, tileset = ocr.ocr(fn)
-        print os.path.basename(fn)
+        print(os.path.basename(fn))
         yield board, tileset, False
 
 def make_move(move):
-    print "Recommended move:", move
+    print("Recommended move:", move)
     os.system('say ' + move)
 
 def rungame(args):
@@ -49,6 +50,6 @@ def rungame(args):
 if __name__ == '__main__':
     import sys
     if len(sys.argv) < 3:
-        print "Usage:", sys.argv[0], "model", "directory", "[startpoint]"
+        print("Usage:", sys.argv[0], "model", "directory", "[startpoint]")
         exit()
     rungame(sys.argv[1:])
