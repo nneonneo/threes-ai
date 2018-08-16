@@ -2,12 +2,20 @@
 
 This assistant takes manual input from the user, allowing it to be used with any game. '''
 
+from __future__ import print_function
 import os
 import numpy as np
 import re
+import sys
 
 from base_assistant import run_assistant, movenames
 from threes import do_move, get_lines
+
+PY3 = sys.version_info[0] >= 3
+
+if not PY3:
+    range = xrange
+    input = raw_input
 
 def to_ind(val):
     try:
@@ -21,7 +29,7 @@ class ManualAssistant:
         self.last_move = None
 
     def _ask_tileset(self):
-        tileset = raw_input("Upcoming tile(s)? ")
+        tileset = input("Upcoming tile(s)? ")
         tileset = {'blue': '1', 'red': '2', 'white': '3+'}.get(tileset, tileset)
         if tileset in ('3+', '6+'):
             return tileset # will be fixed up
@@ -33,7 +41,7 @@ class ManualAssistant:
             return tileset
 
         maxval = board.max()
-        out = set(xrange(4, maxval-3+1))
+        out = set(range(4, maxval-3+1))
         if tileset == '3+':
             out |= {3}
         else:
@@ -53,7 +61,7 @@ class ManualAssistant:
             val = to_ind(int(val))
             if val not in self.last_tiles:
                 raise Exception("New tile wasn't in previous tile set")
-            
+
         if move is None:
             move = self.last_move
 
@@ -72,13 +80,13 @@ class ManualAssistant:
 
     def _ask_board(self):
         if self.last_board is None:
-            print "Current board?"
+            print("Current board?")
         else:
-            print "Current board or difference from last board?"
+            print("Current board or difference from last board?")
 
         bits = []
         while 1:
-            line = re.split(r'[ \t,]', raw_input())
+            line = re.split(r'[\s,]+', input())
             bits += line
             if 1 <= len(bits) < 4:
                 return self._parse_delta(*bits)
@@ -94,14 +102,14 @@ class ManualAssistant:
                     board = self._ask_board()
                     break
                 except Exception as e:
-                    print "Didn't understand your input:", e
+                    print("Didn't understand your input:", e)
 
             while 1:
                 try:
                     tileset = self._ask_tileset()
                     break
                 except Exception as e:
-                    print "Didn't understand your input:", e
+                    print("Didn't understand your input:", e)
 
             tileset = self._fixup_tileset(tileset, board)
             yield board, tileset, False
@@ -109,8 +117,8 @@ class ManualAssistant:
             self.last_tiles = tileset
 
     def make_move(self, move):
-        print "*** Suggested move:", move
-        print
+        print("*** Suggested move:", move)
+        print()
         self.last_move = move
 
 def parse_args(argv):
@@ -124,7 +132,7 @@ def main(argv):
     from itertools import count
     args = parse_args(argv)
 
-    print 'Welcome to the Threes! assistant. See README.md for help on input formats.'
+    print('Welcome to the Threes! assistant. See README.md for help on input formats.')
     assistant = ManualAssistant()
     run_assistant(assistant.gen_board(), assistant.make_move, False)
 

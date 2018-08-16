@@ -354,7 +354,7 @@ class ADBShell:
                 break
             elif prompt.endswith(b'\x1b[6n'):
                 # Device status report: we need to write the window size now (rows, cols)
-                self.proc.stdin.write('\x1b[%d;%dR' % (10000000, 10000000))
+                self.proc.stdin.write(b'\x1b[%d;%dR' % (10000000, 10000000))
                 self.proc.stdin.flush()
                 prompt = ''
         else:
@@ -364,7 +364,7 @@ class ADBShell:
                 warn("timed out waiting for prompt!")
 
         # remove restore-cursor command
-        prompt = prompt.replace('\x1b8', '')
+        prompt = prompt.replace(b'\x1b8', b'')
         m = re.match(br'^(\w+)@(\w+):(.*?) ([$#]) $', prompt)
         if m:
             self.user = m.group(1).decode()

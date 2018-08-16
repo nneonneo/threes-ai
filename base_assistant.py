@@ -1,5 +1,6 @@
 ''' Base functions for move assistants. '''
 
+from __future__ import print_function
 import time
 from threes import *
 from collections import Counter
@@ -15,7 +16,7 @@ def getmove(m1, m2):
 
     possible = []
 
-    for move in xrange(4):
+    for move in range(4):
         m = m1.copy()
 
         lines = get_lines(m, move)
@@ -24,7 +25,7 @@ def getmove(m1, m2):
         if all(f < 0 for f in folds):
             continue
 
-        for i in xrange(4):
+        for i in range(4):
             if folds[i] >= 0:
                 do_fold(lines[i], folds[i])
 
@@ -34,7 +35,7 @@ def getmove(m1, m2):
 
         # check that the inserted value aligns with a fold
         lines2 = get_lines(m2, move)
-        for i in xrange(4):
+        for i in range(4):
             if folds[i] < 0:
                 continue
             if lines[i][-1] != lines2[i][-1]:
@@ -46,12 +47,12 @@ def getmove(m1, m2):
         possible.append((move, diff[0]))
 
     if len(possible) == 0:
-        print "Error: impossible situation"
+        print("Error: impossible situation")
     elif len(possible) > 1:
-        print "Warning: ambiguous result: possibilities:",
+        print("Warning: ambiguous result: possibilities:", end=' ')
         for m, t in possible:
-            print "%s,%d" % (movenames[m], t),
-        print
+            print("%s,%d" % (movenames[m], t), end=' ')
+        print()
         return possible[0]
     else:
         return possible[0]
@@ -65,7 +66,7 @@ def _step_from_start(board, deck, newboard):
     if all(v == 0 for v in deck.values()):
         deck = initial_deck()
     move, t = getmove(board, newboard)
-    print "Previous move:", movenames[move], "; tile:", t
+    print("Previous move:", movenames[move], "; tile:", t)
     if t <= 3:
         if deck[t] == 0:
             raise Exception("Deck desynchronization detected!")
@@ -77,7 +78,7 @@ def _step_from_start(board, deck, newboard):
 
 def _step_reconstruct(board, deck, newboard):
     move, t = getmove(board, newboard)
-    print "Previous move:", movenames[move], "; tile:", t
+    print("Previous move:", movenames[move], "; tile:", t)
     if t <= 3:
         deck.update(t)
 
@@ -100,7 +101,7 @@ def run_assistant(gen_board, make_move_func, from_start=True):
         if not tileset:
             break # game over
         if board is not None and (board == newboard).all():
-            print "Warning: previous move not made"
+            print("Warning: previous move not made")
             time.sleep(0.3)
             move = find_best_move(board, deck, tileset)
             if move < 0:
@@ -108,8 +109,8 @@ def run_assistant(gen_board, make_move_func, from_start=True):
             make_move_func(movenames[move])
             time.sleep(0.3)
             continue
-        print
-        print "Move number", moveno+1
+        print()
+        print("Move number", moveno+1)
         moveno += 1
 
         if from_start:
@@ -125,9 +126,9 @@ def run_assistant(gen_board, make_move_func, from_start=True):
 
         board = newboard.copy()
 
-        print to_val(board)
-        print "Current score:", to_score(board).sum()
-        print "Next tile: %s (deck=1:%d, 2:%d, 3:%d)" % (tileset, deck[1], deck[2], deck[3])
+        print(to_val(board))
+        print("Current score:", to_score(board).sum())
+        print("Next tile: %s (deck=1:%d, 2:%d, 3:%d)" % (tileset, deck[1], deck[2], deck[3]))
 
         if not skip_move:
             move = find_best_move(board, deck, tileset)
@@ -145,13 +146,13 @@ if __name__ == '__main__':
         while True:
             m, tileset, valid = game.send(move)
             if not valid:
-                print "Game over."
+                print("Game over.")
                 break
             yield m, tileset, False
 
     def make_move(mv):
         global move
-        print "Recommended move:", mv
+        print("Recommended move:", mv)
         move = movenum[mv]
 
     run_assistant(gen_board(), make_move)

@@ -1,6 +1,7 @@
 # Reconstruct the deck state as the game plays out.
 # This enables strong AI play from arbitrary starting positions.
 
+from __future__ import print_function
 from itertools import product
 
 class DeckReconstructor:
@@ -10,7 +11,7 @@ class DeckReconstructor:
         vals = list(board.flatten())
         ones = vals.count(1)
         twos = vals.count(2)
-        for deck in product(xrange(5), repeat=3):
+        for deck in product(range(5), repeat=3):
             if deck[0] == deck[1] == deck[2] == 0:
                 continue
 
@@ -61,9 +62,9 @@ if __name__ == '__main__':
     ocr = OCR("LGE Nexus 5")
     imglist = sorted([fn for fn in os.listdir(dirname) if fn >= startfn])
     for fn in imglist:
-        print fn
+        print(fn)
         board, tileset = ocr.ocr(os.path.join(dirname, fn))
         if deck is None:
             deck = DeckReconstructor(board)
         deck.update(tileset[0])
-        print deck
+        print(deck)

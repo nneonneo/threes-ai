@@ -1,20 +1,30 @@
 ''' Basic Python implementation of Threes! '''
 
+from __future__ import print_function
 import numpy as np
+import sys
 
 __author__ = 'Robert Xiao <nneonneo@gmail.com>'
 
+PY3 = sys.version_info[0] >= 3
+
+if not PY3:
+    range = xrange
+    input = raw_input
+
 def to_val(x):
     x = np.asarray(x)
-    return np.where(x < 3, x, 3*2**(x-3))
+    min0 = np.where(x < 3, 0, x-3)
+    return np.where(x < 3, x, 3*(2**min0))
 
 def to_score(x):
     x = np.asarray(x)
-    return np.where(x < 3, 0, 3**(x-2))
+    min0 = np.where(x < 2, 0, x-2)
+    return np.where(x < 3, 0, 3**min0)
 
 def find_fold(line):
     ''' find the position where the line folds, assuming it folds towards the left. '''
-    for i in xrange(3):
+    for i in range(3):
         if line[i] == 0:
             return i
         elif (line[i], line[i+1]) in ((1,2), (2,1)):
@@ -36,13 +46,13 @@ def do_fold(line, pos):
 
 def get_lines(m, dir):
     if dir == 0: # up
-        return [m[:,i] for i in xrange(4)]
+        return [m[:,i] for i in range(4)]
     elif dir == 1: # down
-        return [m[::-1,i] for i in xrange(4)]
+        return [m[::-1,i] for i in range(4)]
     elif dir == 2: # left
-        return [m[i,:] for i in xrange(4)]
+        return [m[i,:] for i in range(4)]
     elif dir == 3: # right
-        return [m[i,::-1] for i in xrange(4)]
+        return [m[i,::-1] for i in range(4)]
 
 def make_deck():
     import random
@@ -54,7 +64,7 @@ def do_move(m, move):
     lines = get_lines(m, move)
     folds = [find_fold(l) for l in lines]
     changelines = []
-    for i in xrange(4):
+    for i in range(4):
         if folds[i] >= 0:
             do_fold(lines[i], folds[i])
             changelines.append(lines[i])
@@ -68,25 +78,25 @@ def play_game():
     import random
 
     deck = make_deck()
-    pos = random.sample(xrange(16), 9)
+    pos = random.sample(range(16), 9)
     m = np.zeros((16,), dtype=int)
     m[pos] = deck[:len(pos)]
     deck = deck[len(pos):]
     m = m.reshape((4,4))
 
     while True:
-        lineset = [get_lines(m, i) for i in xrange(4)]
-        foldset = [[find_fold(l) for l in lineset[i]] for i in xrange(4)]
-        valid = [i for i in xrange(4) if any(f >= 0 for f in foldset[i])]
+        lineset = [get_lines(m, i) for i in range(4)]
+        foldset = [[find_fold(l) for l in lineset[i]] for i in range(4)]
+        valid = [i for i in range(4) if any(f >= 0 for f in foldset[i])]
 
         # TODO: Update random tile generation to account for new pick-three implementation
         maxval = m.max()
         if maxval >= 7 and random.random() < 1/24.:
             if maxval <= 9:
-                tileset = range(4, maxval-2)
+                tileset = list(range(4, maxval-2))
             else:
-                top = random.choice(xrange(6, maxval-2))
-                tileset = range(top-2, top+1)
+                top = random.choice(range(6, maxval-2))
+                tileset = list(range(top-2, top+1))
         else:
             if not deck:
                 deck = make_deck()
@@ -106,20 +116,20 @@ def play_game_interactive():
 
     while True:
         m, tileset, valid = game.send(move)
-        print to_val(m)
+        print(to_val(m))
 
         if not valid:
-            print "Game over."
-            print "Your score is", to_score(m).sum()
+            print("Game over.")
+            print("Your score is", to_score(m).sum())
             break
 
-        print 'next tile:', list(to_val(tileset))
+        print('next tile:', list(to_val(tileset)))
 
         movelist = ''.join('UDLR'[i] for i in valid)
         while True:
-            move = raw_input('Move [%s]? ' % movelist).upper()
+            move = input('Move [%s]? ' % movelist).upper()
             if move not in movelist:
-                print "Invalid move."
+                print("Invalid move.")
                 continue
             move = 'UDLR'.find(move)
             break

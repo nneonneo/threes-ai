@@ -2,10 +2,11 @@
 
 This assistant remote-controls an Android device via ADB, playing the game without human intervention. '''
 
+from __future__ import print_function
 import time
 import os
 import re
-from cStringIO import StringIO
+from io import BytesIO
 
 from ocr import OCR
 from base_assistant import run_assistant, movenames
@@ -26,7 +27,7 @@ class AndroidAssistant:
     def gen_board_mem(self):
         while True:
             sshot_data = self.shell.execute('screencap -p')
-            sshot_file = StringIO(sshot_data)
+            sshot_file = BytesIO(sshot_data)
             board, tileset = self.ocr.ocr(sshot_file)
             self.last_board = board
             yield board, tileset, False
@@ -38,7 +39,7 @@ class AndroidAssistant:
             if imglist:
                 last = imglist[-1]
                 for fn in imglist:
-                    print fn
+                    print(fn)
                     board, tileset = self.ocr.ocr(os.path.join(d, fn))
                     skip = (fn != last)
                     self.last_board = board
@@ -47,11 +48,11 @@ class AndroidAssistant:
 
         while True:
             sshot_data = self.shell.execute('screencap -p')
-            sshot_file = StringIO(sshot_data)
+            sshot_file = BytesIO(sshot_data)
             board, tileset = self.ocr.ocr(sshot_file)
             if board is None:
                 # Wait a bit and retry
-                print "Retrying screenshot..."
+                print("Retrying screenshot...")
                 time.sleep(5)
                 continue
 
@@ -60,7 +61,7 @@ class AndroidAssistant:
             curnum += 1
             with open(dfn, 'wb') as f:
                 f.write(sshot_data)
-            print fn
+            print(fn)
             self.last_board = board
             yield board, tileset, False
 

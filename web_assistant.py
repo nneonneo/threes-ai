@@ -8,6 +8,7 @@ Current Threes implementations supported:
 - http://play.threesgame.com (official port made by Threes! devs)
 '''
 
+from __future__ import print_function
 import time
 import os
 import re
@@ -104,7 +105,7 @@ class ThreesJSAssistant(WebAssistant):
                 while n <= max(maxtile / 8, 3):
                     tileset.add(n)
                     n *= 2
-            print "possible tiles are %s" % tileset
+            print("possible tiles are %s" % tileset)
 
             tileset = set(map(to_ind, tileset))
 

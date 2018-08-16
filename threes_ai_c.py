@@ -1,7 +1,13 @@
+from __future__ import print_function
 import ctypes
 import numpy as np
 import os
 import sys
+
+PY3 = sys.version_info[0] >= 3
+
+if not PY3:
+    int = long
 
 for suffix in ['so', 'dll', 'dylib']:
     dllfn = 'bin/threes.' + suffix
@@ -26,7 +32,7 @@ def get_c_state(m, deck, tileset):
     ''' Convert a NumPy board, dictionary deck, and tile set into C state variables. '''
     board = 0
     for i,v in enumerate(m.flatten()):
-        board |= long(v) << (4*i)
+        board |= int(v) << (4*i)
     deck = (m.max() << 24) | (deck[1]) | (deck[2] << 8) | (deck[3] << 16)
     tileset = sum((1 << t) for t in tileset)
     return board, deck, tileset
@@ -41,7 +47,7 @@ if MULTITHREAD:
         ''' Find the best move with the given board, deck and upcoming tile. '''
         board, deck, tileset = get_c_state(m, deck, tileset)
 
-        scores = pool.map(score_toplevel_move, [(board, deck, tileset, move) for move in xrange(4)])
+        scores = pool.map(score_toplevel_move, [(board, deck, tileset, move) for move in range(4)])
         # To minimize score:
         # bestmove, bestscore = min(enumerate(scores), key=lambda x:x[1] or 1e100)
         bestmove, bestscore = max(enumerate(scores), key=lambda x:x[1])
@@ -65,7 +71,7 @@ def play_with_search(verbose=True):
     import random
     import time
     seed = hash(str(time.time()))
-    print "seed=%d" % seed
+    print("seed=%d" % seed)
     random.seed(seed)
 
     initial_deck = Counter([1,2,3]*4)
@@ -77,7 +83,7 @@ def play_with_search(verbose=True):
     while True:
         m, tileset, valid = game.send(move)
         if verbose:
-            print to_val(m)
+            print(to_val(m))
         if deck is None:
             deck = initial_deck.copy() - Counter(m.flatten())
 
@@ -85,12 +91,12 @@ def play_with_search(verbose=True):
             break
 
         if verbose:
-            print 'next tile:', list(to_val(tileset))
+            print('next tile:', list(to_val(tileset)))
 
         move = find_best_move(m, deck, tileset)
         moveno += 1
         if verbose:
-            print "Move %d: %s" % (moveno, ['up', 'down', 'left', 'right'][move])
+            print("Move %d: %s" % (moveno, ['up', 'down', 'left', 'right'][move]))
         else:
             sys.stdout.write('UDLR'[move])
             sys.stdout.flush()
@@ -100,8 +106,8 @@ def play_with_search(verbose=True):
         if all(deck[i] == 0 for i in (1,2,3)):
             deck = initial_deck.copy()
 
-    print
-    print "Game over. Your score is", to_score(m).sum()
+    print()
+    print("Game over. Your score is", to_score(m).sum())
     return to_score(m).sum()
 
 if __name__ == '__main__':
