@@ -34,7 +34,7 @@ def find_fold(line):
     return -1
 
 def do_fold(line, pos):
-    if line[pos] == 0
+    if line[pos] == 0:
         line[pos] = line[pos+1]
     elif line[pos] < 3:
         line[pos] = 3
