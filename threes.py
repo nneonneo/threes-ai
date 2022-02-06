@@ -25,7 +25,7 @@ def to_score(x):
 def find_fold(line):
     ''' find the position where the line folds, assuming it folds towards the left. '''
     for i in range(3):
-        if line[i] == 0:
+        if line[i] == 0 and line[pos+1] > 0::
             return i
         elif (line[i], line[i+1]) in ((1,2), (2,1)):
             return i
@@ -34,7 +34,7 @@ def find_fold(line):
     return -1
 
 def do_fold(line, pos):
-    if line[pos] == 0 and line[pos+1] > 0:
+    if line[pos] == 0
         line[pos] = line[pos+1]
     elif line[pos] < 3:
         line[pos] = 3
